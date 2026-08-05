@@ -11,13 +11,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::naming;
 use super::registry;
-use super::types::{CdmError, Profile, ProfileStatus, Registry, Result};
+use super::types::{AdoptCandidate, CdmError, Profile, ProfileStatus, Registry, Result};
 use crate::platform;
 
 pub const MARKER_FILE: &str = ".cdm-profile";
 pub const CONFIG_FILE: &str = "claude_desktop_config.json";
 pub const EMPTY_CONFIG: &str = "{\n  \"mcpServers\": {}\n}\n";
 pub const UNMANAGED_DIR: &str = "Claude";
+
+/// Claude Desktop writes the first two on first run; the third is the config cdm also seeds. Any
+/// one of them tells a real profile folder from an unrelated `Claude-notes/`.
+const PROFILE_EVIDENCE: [&str; 3] = ["Local State", "Preferences", CONFIG_FILE];
 
 pub fn create(name: &str) -> Result<Profile> {
     let name = non_empty(name)?;
@@ -197,6 +201,60 @@ pub fn adopt(dir_name: &str, display_name: &str) -> Result<Profile> {
     Ok(profile)
 }
 
+/// Hand-made folders cdm could adopt: `Claude-*`, unmarked, unregistered, and holding profile
+/// evidence. The prefix is also what keeps the bare `Claude` install off every surface — it has
+/// no trailing dash, so it can never match.
+pub fn adoptable() -> Result<Vec<AdoptCandidate>> {
+    let root = platform::current().profiles_root()?;
+    let reg = registry::load()?;
+
+    let entries = match fs::read_dir(&root) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(CdmError::Io(format!("read {}: {e}", root.display()))),
+    };
+
+    let mut found: Vec<AdoptCandidate> = entries
+        .flatten()
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|dir_name| is_adoptable(&root, dir_name, &reg))
+        .map(|dir_name| AdoptCandidate {
+            suggested_name: suggest_name(&dir_name),
+            dir_name,
+        })
+        .collect();
+
+    // Directory order is not stable across runs; the sheet must not reshuffle between openings.
+    found.sort_by_key(|candidate| naming::normalize_key(&candidate.dir_name));
+    Ok(found)
+}
+
+fn is_adoptable(root: &Path, dir_name: &str, reg: &Registry) -> bool {
+    let dir = root.join(dir_name);
+    has_profile_prefix(dir_name)
+        && dir.is_dir()
+        && !dir.join(MARKER_FILE).exists()
+        && !reg
+            .profiles
+            .iter()
+            .any(|p| naming::same_folder(&p.dir, dir_name))
+        && PROFILE_EVIDENCE.iter().any(|file| dir.join(file).exists())
+}
+
+/// Compared through the normalized key: APFS `readdir` returns the bytes as stored, often NFD.
+fn has_profile_prefix(dir_name: &str) -> bool {
+    naming::normalize_key(dir_name).starts_with(&naming::normalize_key(naming::FOLDER_PREFIX))
+}
+
+fn suggest_name(dir_name: &str) -> String {
+    let stem = dir_name.split_once('-').map_or("", |(_, stem)| stem).trim();
+    if stem.is_empty() {
+        dir_name.to_string()
+    } else {
+        stem.to_string()
+    }
+}
+
 /// The folder name is asserted to be a single path component before it is ever joined to the
 /// profiles root, so no user-typed name can reach outside it.
 fn resolve_dir(name: &str, root: &Path) -> Result<String> {
@@ -315,4 +373,71 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     let month = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
     let year = yoe + era * 400;
     (if month <= 2 { year + 1 } else { year }, month, day)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn folder(root: &Path, name: &str, files: &[&str]) {
+        let dir = root.join(name);
+        fs::create_dir(&dir).unwrap();
+        for file in files {
+            fs::write(dir.join(file), "").unwrap();
+        }
+    }
+
+    fn registered(dirs: &[&str]) -> Registry {
+        Registry {
+            profiles: dirs
+                .iter()
+                .map(|dir| Profile {
+                    id: format!("p_{dir}"),
+                    name: dir.to_string(),
+                    dir: dir.to_string(),
+                    created_at: String::new(),
+                    last_used_at: None,
+                })
+                .collect(),
+            ..Registry::default()
+        }
+    }
+
+    #[test]
+    fn a_hand_made_folder_holding_profile_evidence_is_a_candidate() {
+        let root = tempfile::tempdir().unwrap();
+        folder(root.path(), "Claude-Work", &["Local State"]);
+        assert!(is_adoptable(root.path(), "Claude-Work", &Registry::default()));
+    }
+
+    #[test]
+    fn the_unmanaged_claude_folder_is_never_a_candidate() {
+        let root = tempfile::tempdir().unwrap();
+        folder(root.path(), UNMANAGED_DIR, &["Local State", "Preferences"]);
+        assert!(!is_adoptable(root.path(), UNMANAGED_DIR, &Registry::default()));
+    }
+
+    #[test]
+    fn a_marked_or_registered_folder_is_not_a_candidate() {
+        let root = tempfile::tempdir().unwrap();
+        folder(root.path(), "Claude-Marked", &["Preferences", MARKER_FILE]);
+        folder(root.path(), "Claude-Listed", &["Preferences"]);
+        assert!(!is_adoptable(root.path(), "Claude-Marked", &Registry::default()));
+        // Registered under a differently-cased spelling: the same folder either way.
+        assert!(!is_adoptable(root.path(), "Claude-Listed", &registered(&["claude-listed"])));
+    }
+
+    #[test]
+    fn a_folder_without_profile_evidence_is_not_a_candidate() {
+        let root = tempfile::tempdir().unwrap();
+        folder(root.path(), "Claude-notes", &["todo.txt"]);
+        assert!(!is_adoptable(root.path(), "Claude-notes", &Registry::default()));
+    }
+
+    #[test]
+    fn a_suggested_name_is_the_folder_stem() {
+        assert_eq!(suggest_name("Claude-Work"), "Work");
+        assert_eq!(suggest_name("Claude-client-acme"), "client-acme");
+        assert_eq!(suggest_name("Claude-"), "Claude-");
+    }
 }

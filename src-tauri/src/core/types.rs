@@ -34,6 +34,13 @@ pub struct ProfileStatus {
     pub running_pid: Option<u32>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdoptCandidate {
+    pub dir_name: String,
+    pub suggested_name: String,
+}
+
 #[derive(Debug, thiserror::Error, Serialize)]
 #[serde(tag = "kind", content = "detail")]
 pub enum CdmError {

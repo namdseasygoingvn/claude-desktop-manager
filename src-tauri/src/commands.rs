@@ -5,7 +5,7 @@ use tauri::AppHandle;
 
 use crate::core::profile;
 use crate::core::registry;
-use crate::core::types::{CdmError, Profile, ProfileStatus};
+use crate::core::types::{AdoptCandidate, CdmError, Profile, ProfileStatus};
 use crate::platform;
 use crate::tray;
 
@@ -84,6 +84,11 @@ pub fn quit_profile(app: AppHandle, id: String) -> CmdResult<()> {
     profile::quit(&id)?;
     let _ = tray::rebuild(&app);
     Ok(())
+}
+
+#[tauri::command]
+pub fn list_adoptable() -> CmdResult<Vec<AdoptCandidate>> {
+    Ok(profile::adoptable()?)
 }
 
 #[tauri::command]

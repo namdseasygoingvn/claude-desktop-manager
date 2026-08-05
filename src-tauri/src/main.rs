@@ -48,6 +48,7 @@ fn run_manager() {
             commands::rename_profile,
             commands::delete_profile,
             commands::quit_profile,
+            commands::list_adoptable,
             commands::adopt_folder,
             commands::open_config,
             commands::doctor,
