@@ -70,6 +70,7 @@ fn run_manager() {
             commands::set_group_icon,
             commands::delete_group,
             commands::set_profile_group,
+            commands::move_profile,
             updater::check_for_updates,
             updater::install_update,
         ])

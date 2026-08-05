@@ -8,6 +8,7 @@ import {
   listGroups,
   listProfiles,
   locateFolder,
+  moveProfile,
   onTrayEvent,
   onWindowShown,
   openConfig,
@@ -40,7 +41,7 @@ import {
   openRenameGroupSheet,
 } from "./views/groups";
 import { openIconPicker } from "./views/icon-picker";
-import { filterProfiles, renderSidebar, sortProfiles } from "./views/list";
+import { filterProfiles, ordered, renderSidebar } from "./views/list";
 import { openMenu, type MenuEntry } from "./views/menu";
 import { matches, platform, shortcuts } from "./views/platform";
 import { openRenameSheet } from "./views/rename";
@@ -57,6 +58,7 @@ const state = {
   tab: "profiles" as TabId,
   profiles: [] as ProfileStatus[],
   groups: [] as Group[],
+  order: [] as string[],
   candidates: [] as AdoptCandidate[],
   selectedId: null as string | null,
   filter: "",
@@ -76,7 +78,7 @@ function selected(): ProfileStatus | null {
 }
 
 function visible(): ProfileStatus[] {
-  return filterProfiles(sortProfiles(state.profiles), state.filter);
+  return filterProfiles(ordered(state.profiles, state.order), state.filter);
 }
 
 function select(id: string | null): void {
@@ -94,7 +96,9 @@ async function refresh(): Promise<void> {
     return;
   }
   // Groups are cosmetic: an unreadable groups file must not break the profile list.
-  state.groups = await listGroups().catch(() => []);
+  const groups = await listGroups().catch(() => ({ groups: [], order: [] }));
+  state.groups = groups.groups;
+  state.order = groups.order;
   const ids = new Set(state.profiles.map((status) => status.profile.id));
   for (const id of state.missing) if (!ids.has(id)) state.missing.delete(id);
   if (!state.selectedId || !ids.has(state.selectedId)) {
@@ -222,6 +226,7 @@ function manager(): HTMLElement[] {
     renderSidebar({
       profiles: state.profiles,
       groups: state.groups,
+      order: state.order,
       collapsed: state.collapsed,
       selectedId: state.selectedId,
       missingIds: state.missing,
@@ -243,6 +248,7 @@ function manager(): HTMLElement[] {
         render();
       },
       onGroupMenu: (id, x, y) => openMenu(groupMenu(id), { x, y }),
+      onMove: (id, groupId, before) => void reorderProfile(id, groupId, before),
     }),
     renderDetail({
       status,
@@ -403,6 +409,19 @@ function assignToGroup(): void {
     currentGroupId: current?.id ?? null,
     onAssigned: () => void refresh(),
   });
+}
+
+async function reorderProfile(
+  id: string,
+  groupId: string | null,
+  before: string | null,
+): Promise<void> {
+  try {
+    await moveProfile(id, groupId, before);
+    void refresh();
+  } catch (error) {
+    showNotice(t.list.moveFailed, (error as CdmError).message);
+  }
 }
 
 function groupMenu(id: string): MenuEntry[] {

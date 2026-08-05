@@ -93,6 +93,8 @@ export const t = {
     running: "Running",
     neverLaunched: "Never launched",
     missing: "Missing",
+    reorderHint: "Drag to reorder or move to a group",
+    moveFailed: "Couldn't move the profile.",
     newProfile: "New Profile",
     deleteProfile: "Delete Profile",
     moreActions: "More Actions",

@@ -1,5 +1,6 @@
 import type { Group, ProfileStatus } from "../api";
-import { groupIcon, icon, Pencil } from "./icons";
+import { attachDrag } from "./drag";
+import { GripVertical, groupIcon, icon, Pencil } from "./icons";
 import { renderGroupHeader } from "./groups";
 import { lastUsedShort, t } from "./strings";
 
@@ -8,6 +9,7 @@ export const FILTER_THRESHOLD = 10;
 export interface ListProps {
   profiles: ProfileStatus[];
   groups: Group[];
+  order: string[];
   collapsed: Set<string>;
   selectedId: string | null;
   missingIds: Set<string>;
@@ -19,6 +21,7 @@ export interface ListProps {
   onRename: (id: string) => void;
   onToggleGroup: (id: string) => void;
   onGroupMenu: (id: string, x: number, y: number) => void;
+  onMove: (id: string, groupId: string | null, before: string | null) => void;
 }
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base" });
@@ -35,6 +38,24 @@ export function filterProfiles(profiles: ProfileStatus[], filter: string): Profi
   const needle = filter.trim().toLowerCase();
   if (!needle) return profiles;
   return profiles.filter((status) => status.profile.name.toLowerCase().includes(needle));
+}
+
+/** Statuses in `order`, then any leftover alphabetically — a profile never arranged by hand. */
+export function ordered(statuses: ProfileStatus[], order: string[]): ProfileStatus[] {
+  const byId = new Map(statuses.map((status) => [status.profile.id, status]));
+  const seen = new Set<string>();
+  const arranged: ProfileStatus[] = [];
+  for (const id of order) {
+    const status = byId.get(id);
+    if (status && !seen.has(id)) {
+      arranged.push(status);
+      seen.add(id);
+    }
+  }
+  for (const status of sortProfiles(statuses)) {
+    if (!seen.has(status.profile.id)) arranged.push(status);
+  }
+  return arranged;
 }
 
 export function renderSidebar(props: ListProps): HTMLElement {
@@ -69,7 +90,7 @@ function renderList(props: ListProps): HTMLElement {
   list.setAttribute("role", "listbox");
   list.setAttribute("aria-labelledby", "profiles-header");
 
-  const visible = filterProfiles(sortProfiles(props.profiles), props.filter);
+  const visible = filterProfiles(ordered(props.profiles, props.order), props.filter);
   const filtering = props.filter.trim().length > 0;
 
   for (const group of props.groups) {
@@ -120,6 +141,11 @@ function renderList(props: ListProps): HTMLElement {
     }
   });
 
+  attachDrag(list, {
+    profiles: props.profiles,
+    groups: props.groups,
+    onMove: props.onMove,
+  });
   return list;
 }
 
@@ -159,6 +185,7 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
   row.setAttribute("aria-label", t.list.rowLabel(profile.name, running));
   row.tabIndex = selected ? 0 : -1;
   row.dataset.focusKey = `row-${profile.id}`;
+  row.dataset.profileId = profile.id;
   row.classList.toggle("is-selected", selected);
   row.classList.toggle("is-missing", missing);
 
@@ -196,6 +223,17 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
   rename.addEventListener("keydown", (event) => event.stopPropagation());
 
   row.append(bullet, name, secondary, rename);
+
+  // The grip is the drag source; it only appears on hover and never while filtering a subset.
+  if (!props.filter.trim()) {
+    const grip = document.createElement("span");
+    grip.className = "row-grip";
+    grip.draggable = true;
+    grip.title = t.list.reorderHint;
+    grip.setAttribute("aria-hidden", "true");
+    grip.append(icon(GripVertical));
+    row.append(grip);
+  }
   row.addEventListener("click", () => props.onSelect(profile.id));
   row.addEventListener("dblclick", () => props.onActivate(profile.id));
   row.addEventListener("contextmenu", (event) => {

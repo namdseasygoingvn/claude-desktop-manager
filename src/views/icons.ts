@@ -63,7 +63,7 @@ import {
   Zap,
 } from "lucide";
 
-export { ChevronDown, Ellipsis, FolderOpen, Info, Minus, Pencil, Plus, X, type IconNode } from "lucide";
+export { ChevronDown, Ellipsis, FolderOpen, GripVertical, Info, Minus, Pencil, Plus, X, type IconNode } from "lucide";
 
 /** Every icon is decorative: the control it sits in carries the accessible name. */
 export function icon(node: IconNode): SVGElement {

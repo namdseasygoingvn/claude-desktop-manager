@@ -269,7 +269,7 @@ button {
 
 .profile-row {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto auto;
   align-items: center;
   min-height: var(--row-height);
   padding: 4px 6px;
@@ -318,8 +318,45 @@ button {
   color: var(--text);
 }
 
+.profile-row .row-grip {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 24px;
+  color: var(--text-dim);
+  cursor: grab;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profile-row:hover .row-grip,
+.profile-row:focus-within .row-grip {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.row-grip:active {
+  cursor: grabbing;
+}
+
 .profile-row.is-selected {
   background: var(--selected);
+}
+
+.profile-row.is-dragging {
+  opacity: 0.5;
+}
+
+.profile-row.is-drop-before {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+
+.profile-row.is-drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--accent);
 }
 
 /* Group headers in the sidebar */
@@ -350,6 +387,10 @@ button {
 .group-header:hover {
   background: var(--selected);
   color: var(--text);
+}
+
+.group-header.is-drop-target {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .group-header .group-chevron {

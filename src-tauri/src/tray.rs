@@ -144,7 +144,7 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
     let version = version_item(app)?;
     let status = status_items(app, binary_ok)?;
     // Groups cannot break the tray: one that cannot be read simply does not render.
-    let groups = groups::list().unwrap_or_default();
+    let groups = groups::list().unwrap_or_default().groups;
     let group_menus = group_items(app, &groups, &profiles, binary_ok)?;
     let rows = ungrouped_items(app, &groups, &profiles, binary_ok)?;
     let preferences = preferences_item(app)?;

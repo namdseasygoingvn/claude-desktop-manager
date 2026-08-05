@@ -46,7 +46,7 @@ fn list_groups() -> Tool {
         "list_groups",
         "Every user-defined group with its icon and member profile ids.",
         no_args(),
-        |_| out(commands::list_groups()),
+        |_| out(commands::list_groups().map(|list| list.groups)),
     )
 }
 
@@ -482,7 +482,7 @@ fn resolve_group(args: &Value) -> Result<String, String> {
 }
 
 fn find_group(reference: &str) -> Result<groups::Group, String> {
-    let groups = commands::list_groups().map_err(detail)?;
+    let groups = commands::list_groups().map_err(detail)?.groups;
     groups
         .iter()
         .find(|group| group.id == reference)

@@ -39,6 +39,12 @@ export interface Group {
   icon: GroupIcon | null;
 }
 
+/** The whole groups.json: the folders plus the sidebar display order of every profile. */
+export interface GroupList {
+  groups: Group[];
+  order: string[];
+}
+
 /** The check only looks; installing is a separate, explicit step. */
 export type UpdateOutcome =
   | { status: "upToDate"; version: string }
@@ -144,7 +150,7 @@ export const quitProfile = (id: string) => call<void>("quit_profile", { id });
 export const listAdoptable = () => call<AdoptCandidate[]>("list_adoptable");
 export const adoptFolder = (dirName: string, displayName: string) =>
   call<Profile>("adopt_folder", { dirName, displayName });
-export const listGroups = () => call<Group[]>("list_groups");
+export const listGroups = () => call<GroupList>("list_groups");
 export const createGroup = (name: string) => call<Group>("create_group", { name });
 export const renameGroup = (id: string, newName: string) =>
   call<Group>("rename_group", { id, newName });
@@ -153,6 +159,11 @@ export const setGroupIcon = (id: string, icon: GroupIcon | null) =>
 export const deleteGroup = (id: string) => call<void>("delete_group", { id });
 export const setProfileGroup = (profileId: string, groupId: string | null) =>
   call<void>("set_profile_group", { profileId, groupId });
+export const moveProfile = (
+  profileId: string,
+  groupId: string | null,
+  before: string | null,
+) => call<void>("move_profile", { profileId, groupId, before });
 export const openConfig = (id: string) => call<void>("open_config", { id });
 export const doctor = () => call<DoctorReport>("doctor");
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");

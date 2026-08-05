@@ -94,7 +94,7 @@ pub fn list_adoptable() -> CmdResult<Vec<AdoptCandidate>> {
 }
 
 #[tauri::command]
-pub fn list_groups() -> CmdResult<Vec<groups::Group>> {
+pub fn list_groups() -> CmdResult<groups::GroupList> {
     Ok(groups::list()?)
 }
 
@@ -137,6 +137,20 @@ pub fn set_profile_group(
     group_id: Option<String>,
 ) -> CmdResult<()> {
     groups::assign(&profile_id, group_id.as_deref())?;
+    let _ = tray::rebuild(&app);
+    Ok(())
+}
+
+/// Move a profile into a group (or out of one) and place it in the sidebar order before
+/// `before`, or last when `before` is None. Powers drag-to-reorder in the sidebar.
+#[tauri::command]
+pub fn move_profile(
+    app: AppHandle,
+    profile_id: String,
+    group_id: Option<String>,
+    before: Option<String>,
+) -> CmdResult<()> {
+    groups::reposition(&profile_id, group_id.as_deref(), before.as_deref())?;
     let _ = tray::rebuild(&app);
     Ok(())
 }

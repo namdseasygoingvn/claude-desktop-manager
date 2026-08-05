@@ -25,6 +25,7 @@ export function renderGroupHeader(props: GroupHeaderProps): HTMLElement {
   header.type = "button";
   header.className = "group-header";
   header.dataset.focusKey = `group-${props.group.id}`;
+  header.dataset.groupId = props.group.id;
   header.title = props.group.name;
 
   const chevron = icon(ChevronDown);
