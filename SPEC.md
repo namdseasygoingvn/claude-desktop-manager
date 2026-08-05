@@ -1,7 +1,22 @@
 # Claude Desktop Manager — Specification
 
-**Status:** decided. Supersedes `PLAN.md`, which was a skeleton and is stale in five places
-(see [Changes from PLAN.md](#changes-from-planmd)).
+**Status:** decided. This file is the architecture and the decision record; the detail lives in
+`plan/`.
+
+| Document | Covers |
+| --- | --- |
+| [`01-platform-adapter.md`](plan/01-platform-adapter.md) | binary discovery, launch, running detection, termination |
+| [`02-implementation-tauri.md`](plan/02-implementation-tauri.md) | crates, tray, activation policy, detached spawn, atomic writes |
+| [`03-user-interface.md`](plan/03-user-interface.md) | every screen, flow, error state and string |
+| [`04-failure-modes.md`](plan/04-failure-modes.md) | adversarial audit — defects, contradictions, required edits |
+| [`05-mcp-server-management.md`](plan/05-mcp-server-management.md) | config schema and server CRUD (post-v1) |
+| [`06-distribution-and-updates.md`](plan/06-distribution-and-updates.md) | signing, notarization, updater, CI |
+
+> **This document has not been reconciled with the audit.** `plan/04-failure-modes.md` finds 9
+> internal contradictions here and specifies 14 edits, none of which are applied below. Where
+> the two disagree, the audit is correct. In particular: `is_running()` as described in
+> [Running detection](#running-detection) cannot work — Claude Desktop never creates
+> `SingletonLock`.
 
 ## Purpose
 
