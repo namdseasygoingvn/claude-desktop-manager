@@ -22,6 +22,7 @@ const LABEL_OPEN_MANAGER: &str = "Open Manager to Fix\u{2026}";
 const LABEL_NEW: &str = "New Profile\u{2026}";
 const LABEL_MANAGE: &str = "Manage Profiles\u{2026}";
 const LABEL_MORE: &str = "More\u{2026}";
+const LABEL_UPDATE: &str = "Check for Updates\u{2026}";
 
 mod id {
     pub const STATUS: &str = "status";
@@ -31,12 +32,14 @@ mod id {
     pub const MANAGE: &str = "manage";
     pub const MORE: &str = "more";
     pub const QUIT: &str = "quit";
+    pub const UPDATE: &str = "update";
     pub const LAUNCH_PREFIX: &str = "launch:";
 }
 
 pub mod event {
     pub const NEW_PROFILE: &str = "cdm://new-profile";
     pub const LOCATE_BINARY: &str = "cdm://locate-binary";
+    pub const UPDATE_RESULT: &str = "cdm://update-result";
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
@@ -112,6 +115,15 @@ fn handle_menu(app: &AppHandle, item: &str) {
             let _ = show_manager(app);
         }
         id::QUIT => app.exit(0),
+        id::UPDATE => {
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let outcome = tauri::async_runtime::block_on(crate::updater::check_for_updates(
+                    app.clone(),
+                ));
+                let _ = app.emit(event::UPDATE_RESULT, outcome.ok());
+            });
+        }
         other => {
             if let Some(profile_id) = other.strip_prefix(id::LAUNCH_PREFIX) {
                 let _ = profile::launch(profile_id);
@@ -149,6 +161,7 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
         .text(id::NEW, LABEL_NEW)
         .text(id::MANAGE, LABEL_MANAGE)
         .separator()
+        .text(id::UPDATE, LABEL_UPDATE)
         .text(id::QUIT, quit_label())
         .build()
 }

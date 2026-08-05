@@ -10,27 +10,58 @@ permissions:
 
 concurrency:
   group: build-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  # The updater compares versions, so every build has to carry a higher one than
+  # the last. The bump is committed back to main with [skip ci] so it cannot
+  # retrigger this workflow.
+  bump:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: bump
+        run: |
+          CONF=src-tauri/tauri.conf.json
+          CURRENT=$(node -p "require('./$CONF').version")
+          NEXT=$(node -e "const [a,b,c]='$CURRENT'.split('.');console.log(\`\${a}.\${b}.\${+c+1}\`)")
+          node -e "
+            const fs=require('fs');
+            const c=JSON.parse(fs.readFileSync('$CONF','utf8'));
+            c.version='$NEXT';
+            fs.writeFileSync('$CONF', JSON.stringify(c,null,2)+'\n');
+          "
+          npm pkg set version="$NEXT"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "$CURRENT -> $NEXT"
+
+      - name: Commit the bump
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release v${{ steps.bump.outputs.version }} [skip ci]"
+          git push
+
   build:
+    needs: bump
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-latest
             target: universal-apple-darwin
-            bundles: dmg
-            artifact: macos-dmg
-            glob: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            bundles: nsis
-            artifact: windows-setup
-            glob: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-node@v4
         with:
@@ -52,68 +83,27 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
-      # `tauri build` runs beforeBuildCommand, which is `tsc --noEmit && vite build`,
-      # so the frontend typecheck happens here rather than as its own step.
-      - name: Build
-        run: npm run tauri build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.glob }}
-          if-no-files-found: error
-          retention-days: 1
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Build release notes
-        run: |
-          {
-            echo "Create, name, and launch isolated Claude Desktop profiles."
-            echo
-            echo "Built from \`${GITHUB_SHA:0:7}\` — $(git log -1 --pretty=%s)"
-            echo
-            echo "## Install"
-            echo "**macOS (universal):** download the \`.dmg\`, open it, drag the app to Applications."
-            echo "First open: macOS blocks it (unsigned) — right-click the app → **Open → Open**."
-            echo
-            echo "**Windows (x64):** download the \`-setup.exe\` and run it."
-            echo "First run: SmartScreen shows \"Windows protected your PC\" (unsigned) — **More info → Run anyway**."
-            echo
-            echo "The app lives in the **menu bar / system tray**, not the Dock or taskbar."
-          } > NOTES.md
-
-      # action-gh-release will not move an existing tag, so the rolling release is
-      # torn down first rather than left pointing at an older commit.
-      - name: Clear previous rolling release
+      # tauri-action builds, signs the update artifacts, publishes the release, and
+      # generates the latest.json the updater reads.
+      - uses: tauri-apps/tauri-action@v0
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete latest --yes --cleanup-tag || true
-
-      - name: Publish rolling release
-        uses: softprops/action-gh-release@v3
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tag_name: latest
-          name: Latest build
-          body_path: NOTES.md
-          files: artifacts/*
-          prerelease: true
+          tagName: v${{ needs.bump.outputs.version }}
+          releaseName: v${{ needs.bump.outputs.version }}
+          releaseBody: |
+            Create, name, and launch isolated Claude Desktop profiles.
 
-      - name: Delete transient build artifacts
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api /repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
-            --jq '.artifacts[].id' \
-          | xargs -r -I{} gh api -X DELETE /repos/${{ github.repository }}/actions/artifacts/{}
+            **macOS (universal):** download the `.dmg`, open it, drag the app to Applications.
+            First open: macOS blocks it (unsigned) — right-click the app → **Open → Open**.
+
+            **Windows (x64):** download the `-setup.exe` and run it.
+            First run: SmartScreen shows "Windows protected your PC" (unsigned) — **More info → Run anyway**.
+
+            The app lives in the **menu bar / system tray**, not the Dock or taskbar.
+            Installed copies update themselves silently; the tray also has *Check for Updates…*.
+          releaseDraft: false
+          prerelease: false
+          args: --target ${{ matrix.target }}

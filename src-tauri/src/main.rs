@@ -5,6 +5,7 @@ mod commands;
 mod core;
 mod platform;
 mod tray;
+mod updater;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -38,6 +39,8 @@ fn run_manager() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             commands::list_profiles,
             commands::create_profile,
@@ -48,6 +51,7 @@ fn run_manager() {
             commands::adopt_folder,
             commands::open_config,
             commands::doctor,
+            updater::check_for_updates,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -55,6 +59,7 @@ fn run_manager() {
                 .set_activation_policy(tauri::ActivationPolicy::Accessory)?;
             reconcile_at_startup();
             tray::init(app.handle())?;
+            updater::spawn_background_check(app.handle());
             Ok(())
         })
         .on_window_event(tray::on_window_event)
