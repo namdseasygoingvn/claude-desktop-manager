@@ -74,11 +74,58 @@ button {
   white-space: nowrap;
 }
 
-/* Layout — the toolbar sits first in the DOM for tab order, and is placed by the grid. */
+/* Layout — the tab strip owns the top edge; the selected pane fills what is left. */
 
 #app {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  min-height: 28px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.tab:hover[aria-selected="false"] {
+  background: var(--selected);
+}
+
+.tab[aria-selected="true"] {
+  background: var(--bg);
+  border-color: var(--line);
+  border-bottom-color: var(--bg);
+  color: var(--text);
+  margin-bottom: -1px;
+}
+
+.pane {
+  flex: 1;
+  min-height: 0;
+}
+
+.pane-plain,
+.pane-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The profile manager keeps its own grid, now scoped to its pane rather than the window. */
+.pane-profiles {
+  display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas:
@@ -87,12 +134,45 @@ button {
     "toolbar detail";
 }
 
-:root[data-platform="windows"] #app {
+:root[data-platform="windows"] .pane-profiles {
   grid-template-rows: auto auto minmax(0, 1fr);
   grid-template-areas:
     "toolbar toolbar"
     "banner banner"
     "sidebar detail";
+}
+
+.settings-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+
+.settings-pane h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.settings-value {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.settings-status {
+  margin: 0;
+}
+
+.settings-status.is-failed {
+  color: var(--danger);
+}
+
+.settings-pane .helper {
+  margin: 0;
+  max-width: 44em;
 }
 
 .toolbar {
@@ -319,7 +399,7 @@ button {
 /* Full-pane states: first run, and a profile list that cannot be read. */
 
 .full-pane {
-  grid-area: 1 / 1 / -1 / -1;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;

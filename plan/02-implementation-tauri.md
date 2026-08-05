@@ -81,7 +81,7 @@ you ship `.ico`. (Both confirmed in the `tauri` crate's `[features]` table.)
 | --- | --- | --- |
 | `tauri` | 2.11.5 | core; features `tray-icon`, `image-png` |
 | `tauri-build` | 2.x (build-dep) | codegen in `build.rs` |
-| `tauri-plugin-single-instance` | 2.4.3 | second launch focuses the manager instead of a second tray icon |
+| `tauri-plugin-single-instance` | 2.4.3 | second launch focuses Preferences instead of a second tray icon |
 | `tauri-plugin-dialog` | 2.7.2 | delete confirm, "Quit &" prompts, binary-not-found error; used from **Rust** (`blocking_show_with_result`) |
 | `tauri-plugin-opener` | 2.5.4 | *Edit Config* (`open_path`) and *Reveal in Finder/Explorer* (`reveal_item_in_dir`) |
 | `tauri-plugin-log` | 2.9.0 | optional; file + stderr logging for `cdm doctor` |
@@ -191,7 +191,12 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> 
 
 fn menu_for<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
     let profiles = crate::core::registry::list(app);
-    let mut b = MenuBuilder::new(app);
+    let info = app.package_info();
+    let version = MenuItemBuilder::with_id("version", format!("{} {}", info.name, info.version))
+        .enabled(false)
+        .build(app)?;
+
+    let mut b = MenuBuilder::new(app).item(&version).separator();
     if profiles.is_empty() {
         b = b.text("noprofiles", "No profiles").separator();
     } else {
@@ -200,11 +205,13 @@ fn menu_for<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R
         }
         b = b.separator();
     }
-    b.text("new", "New Profile…")
-        .text("manage", "Manage Profiles…")
-        .separator()
-        .quit()
-        .build()
+    b.item(
+        &MenuItemBuilder::with_id("preferences", "Preferences…")
+            .accelerator("CmdOrCtrl+,")
+            .build(app)?,
+    )
+    .quit()
+    .build()
 }
 
 /// Call after every create / rename / delete / adopt.
@@ -258,7 +265,7 @@ Note the distinction that trips people up: `App::set_activation_policy(&mut self
 -> Result<()>` is the **runtime** one. Only the `AppHandle` form can flip the policy while
 the app is running, which is what the spec requires.
 
-Start as `Accessory` in `setup`, go `Regular` when the manager window is shown, go back on
+Start as `Accessory` in `setup`, go `Regular` when the Preferences window is shown, go back on
 hide:
 
 ```rust
@@ -322,7 +329,7 @@ The event is `WindowEvent::CloseRequested { api: CloseRequestApi }` (confirmed v
 
 Two related pieces:
 
-- Configure the manager window with `"visible": false` in `tauri.conf.json` so cdm starts as
+- Configure the Preferences window with `"visible": false` in `tauri.conf.json` so cdm starts as
   tray-only and never flashes a window on login.
 - Because the window is only hidden, the app never runs out of windows, so the usual
   "app quits when the last window closes" path is not hit. If you ever also want to survive a
@@ -603,7 +610,7 @@ Two consequences to accept, not fix:
 `FnMut(&AppHandle<R>, Vec<String>, String)` (confirmed signature: app handle, argv, cwd) and
 is registered inside the Tauri builder. Because the CLI path `exit`s before the builder ever
 runs, `cdm list` while the GUI is running does **not** get routed into the single-instance
-callback and does not steal focus. The callback's only job is to show and focus the manager
+callback and does not steal focus. The callback's only job is to show and focus Preferences
 window (and flip the macOS activation policy to `Regular`).
 
 macOS has no equivalent console problem — a `.app` bundle's inner executable is a normal

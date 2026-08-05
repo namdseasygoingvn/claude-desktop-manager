@@ -16,7 +16,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Claude Desktop Manager",
+        "title": "Preferences",
         "width": 760,
         "height": 560,
         "minWidth": 520,

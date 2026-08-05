@@ -55,22 +55,24 @@ and **any number of profiles run concurrently**.
 
 Two views over one model.
 
-**Menu bar / tray** — the everyday surface. Lists profiles; clicking one launches it. Also
-holds *New Profile…* and *Manage Profiles…*.
+**Menu bar / tray** — the everyday surface, and only that: it opens with the running version,
+lists profiles so clicking one launches it, and otherwise holds *Preferences…* and *Quit*.
+Every action that is not "launch a profile" lives behind that one door.
 
-**Manager window** — create, rename, delete, and per-profile details. Opened from the tray.
-Closing it hides the window rather than quitting the app.
+**Preferences window** — two tabs. *Profiles*: create, rename, delete, adopt, and per-profile
+details. *Updates*: the version and a manual check. Opened from the tray; closing it hides the
+window rather than quitting the app.
 
-Profiles are launched **only** from the manager. No `.app` bundles or `.lnk` shortcuts are
+Profiles are launched **only** from cdm. No `.app` bundles or `.lnk` shortcuts are
 generated, so there is nothing on disk to keep in sync with a rename.
 
 ### macOS activation policy
 
 The app runs as `ActivationPolicy::Accessory` (tray only, no Dock icon) and switches to
-`Regular` while the manager window is open, then back on close. Windows has no equivalent;
+`Regular` while the Preferences window is open, then back on close. Windows has no equivalent;
 the tray icon is the only persistent presence.
 
-### Single instance of the manager
+### Single instance
 
 `tauri-plugin-single-instance`. Launching cdm twice focuses the existing instance rather than
 starting a second tray icon.
@@ -197,13 +199,13 @@ On startup, core reconciles registry against disk:
 
 - Entry whose `dir` is missing → scan `Claude-*` folders for a `.cdm-profile` with that `id`;
   if found, repair `dir` (this is how a crash mid-rename heals). If not found, mark the entry
-  **orphaned** and surface it in the manager window rather than deleting it silently.
+  **orphaned** and surface it in the Preferences window rather than deleting it silently.
 - Folder with a `.cdm-profile` id absent from the registry → re-adopt it, deriving the display
   name from the folder stem.
 - Folder without a `.cdm-profile` → ignore entirely. This is what protects the user's existing
   `Claude/` and hand-made `Claude-Work/` folders from being adopted without consent.
 
-Adopting a hand-made folder is offered explicitly in the manager window, never automatic.
+Adopting a hand-made folder is offered explicitly in the Preferences window, never automatic.
 
 ## Operations
 
@@ -281,7 +283,7 @@ driven without the GUI, primarily to prove launch and isolation on a fresh OS.
 1. **Core + adapter + debug CLI, no GUI.** Proves `--user-data-dir` isolation and concurrent
    launch on macOS and Windows. This is the milestone that de-risks everything else.
 2. **Tray**: list profiles, launch, quit.
-3. **Manager window**: create, rename, delete, adopt orphans.
+3. **Preferences window**: create, rename, delete, adopt orphans.
 4. **Polish**: reconciliation edge cases, trash, *Quit &* flows, activation policy.
 
 ## Open items

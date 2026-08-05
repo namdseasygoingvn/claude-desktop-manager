@@ -5,7 +5,7 @@ and no documentation.** Anything that would otherwise require one of those is ei
 or does not exist.
 
 Two surfaces, one model. The tray is the everyday surface and is optimised for one click.
-The manager window is where profiles are made and changed, and is optimised for being
+The Preferences window is where profiles are made and changed, and is optimised for being
 understood by someone who has never seen it.
 
 ### Vocabulary
@@ -33,15 +33,27 @@ menu — a native menu, so it inherits every platform behaviour for free.
 ### Ordering
 
 ```
+Claude Desktop Manager 0.1.4       ← disabled; product name and version from tauri.conf.json
+──────────────
 [ status row — only when something is wrong ]
 ──────────────
 [ profile rows ]
 ──────────────
-New Profile…
-Manage Profiles…
-──────────────
+Preferences…                       ⌘,
 Quit Claude Desktop Manager        (macOS)   /   Exit   (Windows)
 ```
+
+> **DECIDED:** the menu opens with the running version rather than a bare list. cdm updates
+> itself in the background, so "which build am I on?" is a question the everyday surface should
+> answer without opening a window — and the row costs nothing, since it is disabled.
+
+> **DECIDED:** creating profiles, managing them, and checking for updates all left the tray for
+> Preferences. The tray's job is *launch a profile*, and every non-launch row it carried was a
+> second, worse entry point to a window that does the same thing better. `Preferences…` is the
+> single door.
+
+> The ⌘, accelerator only fires while cdm is frontmost: an Accessory app has no menu bar to own
+> the key globally, and cdm does not register a global shortcut for it.
 
 Profiles are sorted **alphabetically by display name**, locale-aware and case-insensitive,
 ties broken by `createdAt` so two profiles sharing a name have a stable order.
@@ -51,7 +63,7 @@ ties broken by `createdAt` so two profiles sharing a name have a stable order.
 > it is used, which is exactly the wrong property for muscle memory.
 
 > **DECIDED:** at more than 20 profiles the menu shows the first 20 and then a final row
-> `More…`, which opens the manager. A tray menu taller than the screen is a broken menu.
+> `More…`, which opens Preferences. A tray menu taller than the screen is a broken menu.
 
 ### Running state
 
@@ -76,16 +88,16 @@ it is never an error and never shows a dialog.
 
 ```
 ┌────────────────────────────────┐
+│  Claude Desktop Manager 0.1.4  │   ← disabled
+│ ────────────────────────────── │
 │  No profiles yet               │   ← disabled
 │ ────────────────────────────── │
-│  New Profile…                  │
-│  Manage Profiles…              │
-│ ────────────────────────────── │
+│  Preferences…                  │
 │  Quit Claude Desktop Manager   │
 └────────────────────────────────┘
 ```
 
-> **DECIDED:** on first run — the registry file does not exist — cdm opens the manager window
+> **DECIDED:** on first run — the registry file does not exist — cdm opens the Preferences window
 > immediately rather than sitting silently in the tray. A tray-only app with zero profiles is
 > indistinguishable from a broken install, and the brief forbids sending the user to
 > documentation to find out otherwise.
@@ -94,14 +106,14 @@ it is never an error and never shows a dialog.
 
 ```
 ┌────────────────────────────────┐
+│  Claude Desktop Manager 0.1.4  │   ← disabled
+│ ────────────────────────────── │
 │  ● Work (EU)                   │   ← running
 │    client/acme                 │
 │  ● Personal                    │   ← running
 │    Personal                    │   ← duplicate name, allowed
 │ ────────────────────────────── │
-│  New Profile…                  │
-│  Manage Profiles…              │
-│ ────────────────────────────── │
+│  Preferences…                  │
 │  Quit Claude Desktop Manager   │
 └────────────────────────────────┘
 ```
@@ -111,24 +123,27 @@ disambiguated with folder names, numbers, or dates.
 
 > **DECIDED:** duplicate display names are not disambiguated in the tray. Any disambiguator
 > would have to be the folder (forbidden) or an arbitrary counter (meaningless to the user).
-> The manager window is where a user who has confused themselves goes to rename one.
+> The Preferences window is where a user who has confused themselves goes to rename one.
 
 ### State: Claude binary not found
 
 ```
 ┌────────────────────────────────┐
+│  Claude Desktop Manager 0.1.4  │   ← disabled
+│ ────────────────────────────── │
 │  ⚠  Claude Desktop not found   │   ← disabled, explanatory
 │  Locate Claude Desktop…        │   ← the only enabled fix
 │ ────────────────────────────── │
 │    Work (EU)                   │   ← all dimmed / disabled
 │    Personal                    │
 │ ────────────────────────────── │
-│  New Profile…                  │
-│  Manage Profiles…              │
-│ ────────────────────────────── │
+│  Preferences…                  │
 │  Quit Claude Desktop Manager   │
 └────────────────────────────────┘
 ```
+
+The version row stays first. It describes cdm, not the profiles, so nothing that goes wrong
+with Claude Desktop displaces it.
 
 Profiles remain listed — the user's profiles still exist and hiding them would read as data
 loss — but are disabled, with the reason and the fix directly above them.
@@ -137,15 +152,18 @@ loss — but are disabled, with the reason and the fix directly above them.
 
 ```
 ┌────────────────────────────────┐
+│  Claude Desktop Manager 0.1.4  │   ← disabled
+│ ────────────────────────────── │
 │  ⚠  Profile list unavailable   │   ← disabled
-│  Open Manager to Fix…          │
+│  Open Preferences to Fix…      │
 │ ────────────────────────────── │
 │  Quit Claude Desktop Manager   │
 └────────────────────────────────┘
 ```
 
-`New Profile…` is **removed**, not disabled — creating a profile writes the registry, and cdm
-must never write over a file it could not read and might still be able to recover.
+Preferences still opens — its Profiles tab is where the rebuild lives — but nothing reachable
+from this menu writes the registry, because cdm must never write over a file it could not read
+and might still be able to recover.
 
 ### Quit
 
@@ -158,12 +176,34 @@ confirmation, and no attempt to clean up.
 
 ---
 
-## 2. Manager window
+## 2. Preferences window
+
+cdm's only window, titled **Preferences** on both platforms, opened from the tray. Closing it
+hides it. Default size 820 × 560, minimum 640 × 420, size and position remembered.
+
+A tab strip owns the top edge and one pane is visible at a time:
+
+```
+┌─ Preferences ──────────────────────────────────────┐
+│  [ Profiles ]  [ Updates ]                         │
+│ ────────────────────────────────────────────────── │
+│                                                    │
+│   (selected pane fills the rest of the window)     │
+│                                                    │
+└────────────────────────────────────────────────────┘
+```
+
+> **DECIDED:** tabs, not a sidebar or one long scrolling page. There are two panes and they
+> share nothing; a sidebar spends 200px to switch between two things, and stacking them puts
+> update controls underneath a profile list that is already the taller of the two.
+
+Arrow keys move between tabs; only the selected tab is in the tab order, so <kbd>Tab</kbd>
+moves into the pane rather than along the strip.
+
+### 2.1 Profiles tab
 
 Master–detail. Profile list on the left, detail pane on the right, actions in the detail pane
-next to the thing they act on. Closing the window hides it.
-
-Default size 820 × 560, minimum 640 × 420, size and position remembered.
+next to the thing they act on. Everything in §3's flows lives here.
 
 ### macOS
 
@@ -293,13 +333,49 @@ Copy shape also differs and is authored once, mapped twice: macOS alerts use **m
 task dialogs use **main instruction** plus **content**. The strings below are given as
 *message / informative*, which map directly.
 
+### 2.2 Updates tab
+
+```
+┌─ Preferences ──────────────────────────────────────┐
+│  [ Profiles ]  [ Updates ]                         │
+│ ────────────────────────────────────────────────── │
+│  Updates                                           │
+│  Version 0.1.4                                     │
+│                                                    │
+│  ┌──────────────────────┐                          │
+│  │ Check for Updates    │                          │
+│  └──────────────────────┘                          │
+│                                                    │
+│  cdm checks for updates on its own every few hours.│
+└────────────────────────────────────────────────────┘
+```
+
+The button label becomes *Checking…* and disables while a check is in flight. The outcome
+appears beneath it and stays until the next check:
+
+| Outcome | Line |
+| --- | --- |
+| `upToDate` | "cdm is up to date." |
+| `installed` | "Version 0.1.5 is installed. It starts running the next time you open cdm." / "Your running profiles are untouched." |
+| failure | "Couldn't check for updates." in the danger colour, with the underlying detail beneath it |
+
+> **DECIDED:** the button both checks *and* installs, because `check_for_updates` does — there
+> is no separate Download step to expose. What it deliberately does not do is restart: that
+> would kill every Claude profile cdm has spawned, so the new bundle waits on disk for the next
+> launch. The copy says so rather than leaving the user to wonder why nothing changed.
+
+> **DECIDED:** no "check automatically" toggle. The background poll is not optional — a tray
+> app that silently falls behind on updates is the failure mode the updater exists to prevent —
+> so a switch that only ever reads *on* is a lie shaped like a preference. The sentence at the
+> bottom states the behaviour instead.
+
 ---
 
 ## 3. Flows
 
 ### 3.1 First run — the empty state
 
-cdm launches, the tray icon appears, and the manager window opens unprompted.
+cdm launches, the tray icon appears, and the Preferences window opens unprompted.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -340,7 +416,7 @@ reassurance later.
 ### 3.2 Create a profile
 
 1. User clicks `New Profile` (empty state, `⊞`, tray *New Profile…*, or ⌘N / Ctrl+N). From the
-   tray this shows the manager window first, then the sheet.
+   tray this shows the Preferences window first, then the sheet.
 2. Sheet / dialog:
 
 ```
@@ -383,7 +459,7 @@ reassurance later.
 **From the tray:** one click on the row. The menu closes. No dialog, no confirmation, no
 progress window. The row's running bullet appears once `is_running` observes it.
 
-**From the manager:** select the profile, click `Launch` (or press Return in the list).
+**From Preferences:** select the profile, click `Launch` (or press Return in the list).
 
 - The button becomes `Launching…` and disables for up to 3 s, then reverts. This is feedback
   only — cdm does not wait on the child process and does not report timeout as failure.
@@ -512,7 +588,7 @@ is precisely why the confirm says so.
 Adoption is offered, never automatic.
 
 **Discovery.** When `Claude-*` folders exist in the profiles root that have no `.cdm-profile`
-and are not in the registry, the manager shows a dismissible banner above the list:
+and are not in the registry, the Profiles tab shows a dismissible banner above the list:
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -722,7 +798,7 @@ line swapped for the actual reason.
 
 cdm never overwrites a registry it could not parse.
 
-The manager window opens (or comes forward) showing a full-pane error, not a dialog — there is
+The Preferences window opens (or comes forward) showing a full-pane error, not a dialog — there is
 nothing else the window can usefully show:
 
 ```
@@ -767,7 +843,7 @@ different fix:
 ### 4.7 Profile folder deleted behind cdm's back
 
 Detected at startup (reconciliation) or at launch time. Both routes land in the orphan flow,
-§3.7. If it is discovered at launch time, the manager comes forward with that profile selected
+§3.7. If it is discovered at launch time, Preferences comes forward with that profile selected
 and the orphan detail pane showing — the click is answered with the explanation and the fix,
 never with a bare error dialog.
 
@@ -873,23 +949,26 @@ not implementation detail. It still does not say `~/Library/Application Support/
   Menu key. cdm adds nothing and breaks nothing.
 
 > **DECIDED:** no default global hotkey. Any default collides with something on someone's
-> machine, and no settings surface for rebinding is specified. Revisit alongside a preferences
-> window, if one ever exists.
+> machine, and no settings surface for rebinding is specified. The `Preferences…` row carries
+> ⌘, but that is a menu accelerator, not a global hotkey — it fires only while cdm is frontmost.
 
-### Manager window — tab order
+### Preferences window — tab order
 
 Forward Tab order, macOS and Windows identical apart from the toolbar/command-bar position:
 
-1. New Profile (`⊞` / command-bar button)
-2. Filter field, when present (>10 profiles)
-3. Profile list (one stop; arrows move within it)
-4. Detail pane primary button (`Launch` / `Locate Folder…`)
-5. `Rename…`
-6. `Edit MCP Config…`
-7. `Reveal…` / `Show…`
-8. `Delete Profile…`
-9. Banner action, when a banner is showing
-10. wrap
+1. The selected tab in the strip (one stop; ← → move between tabs and switch panes)
+2. New Profile (`⊞` / command-bar button)
+3. Filter field, when present (>10 profiles)
+4. Profile list (one stop; arrows move within it)
+5. Detail pane primary button (`Launch` / `Locate Folder…`)
+6. `Rename…`
+7. `Edit MCP Config…`
+8. `Reveal…` / `Show…`
+9. `Delete Profile…`
+10. Banner action, when a banner is showing
+11. wrap
+
+On the Updates tab the strip is followed by `Check for Updates`, then wrap.
 
 Shift+Tab reverses. The list is a single tab stop with roving focus, per platform convention.
 

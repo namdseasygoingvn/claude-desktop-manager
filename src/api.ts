@@ -3,9 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-/** Emitted by the tray, which shows the manager first and then asks it to open a sheet. */
+/** Emitted by the tray, which shows Preferences first and then asks it to open a sheet. */
 export const TRAY_EVENTS = {
-  newProfile: "cdm://new-profile",
   locateBinary: "cdm://locate-binary",
 } as const;
 
@@ -26,6 +25,11 @@ export interface AdoptCandidate {
   dirName: string;
   suggestedName: string;
 }
+
+/** The check installs when something is there, so `installed` is a completed download. */
+export type UpdateOutcome =
+  | { status: "upToDate"; version: string }
+  | { status: "installed"; version: string };
 
 /** Owned by the backend; the frontend only ever stringifies it into Copy Details. */
 export type DoctorReport = Record<string, unknown>;
@@ -128,6 +132,7 @@ export const adoptFolder = (dirName: string, displayName: string) =>
   call<Profile>("adopt_folder", { dirName, displayName });
 export const openConfig = (id: string) => call<void>("open_config", { id });
 export const doctor = () => call<DoctorReport>("doctor");
+export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
 
 // Beyond the agreed command contract. Every flow below is specified by plan/03 but has no
 // command yet; each caller degrades to the plan's error path when the backend rejects.

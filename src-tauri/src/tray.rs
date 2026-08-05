@@ -7,9 +7,9 @@ use crate::core::types::ProfileStatus;
 use crate::platform;
 
 pub const TRAY_ID: &str = "cdm-tray";
-pub const MANAGER_WINDOW: &str = "main";
+pub const PREFERENCES_WINDOW: &str = "main";
 
-/// Rows past this open the manager instead; a menu taller than the screen is a broken menu.
+/// Rows past this open Preferences instead; a menu taller than the screen is a broken menu.
 const MAX_ROWS: usize = 20;
 const RUNNING_MARK: &str = "\u{25cf} ";
 const IDLE_MARK: &str = "   ";
@@ -18,28 +18,25 @@ const LABEL_NO_PROFILES: &str = "No profiles yet";
 const LABEL_BINARY_MISSING: &str = "\u{26a0} Claude Desktop not found";
 const LABEL_LOCATE: &str = "Locate Claude Desktop\u{2026}";
 const LABEL_REGISTRY_BROKEN: &str = "\u{26a0} Profile list unavailable";
-const LABEL_OPEN_MANAGER: &str = "Open Manager to Fix\u{2026}";
-const LABEL_NEW: &str = "New Profile\u{2026}";
-const LABEL_MANAGE: &str = "Manage Profiles\u{2026}";
+const LABEL_OPEN_PREFERENCES: &str = "Open Preferences to Fix\u{2026}";
 const LABEL_MORE: &str = "More\u{2026}";
-const LABEL_UPDATE: &str = "Check for Updates\u{2026}";
+const LABEL_PREFERENCES: &str = "Preferences\u{2026}";
+/// Only fires while cdm is frontmost: an Accessory app has no menu bar to own the key globally.
+const PREFERENCES_ACCELERATOR: &str = "CmdOrCtrl+,";
 
 mod id {
+    pub const VERSION: &str = "version";
     pub const STATUS: &str = "status";
     pub const EMPTY: &str = "empty";
     pub const LOCATE: &str = "locate";
-    pub const NEW: &str = "new";
-    pub const MANAGE: &str = "manage";
+    pub const PREFERENCES: &str = "preferences";
     pub const MORE: &str = "more";
     pub const QUIT: &str = "quit";
-    pub const UPDATE: &str = "update";
     pub const LAUNCH_PREFIX: &str = "launch:";
 }
 
 pub mod event {
-    pub const NEW_PROFILE: &str = "cdm://new-profile";
     pub const LOCATE_BINARY: &str = "cdm://locate-binary";
-    pub const UPDATE_RESULT: &str = "cdm://update-result";
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
@@ -68,14 +65,14 @@ pub fn rebuild(app: &AppHandle) -> tauri::Result<()> {
     })
 }
 
-pub fn show_manager(app: &AppHandle) -> tauri::Result<()> {
+pub fn show_preferences(app: &AppHandle) -> tauri::Result<()> {
     // Regular before show(): otherwise the window can come up behind the frontmost app.
     #[cfg(target_os = "macos")]
     {
         app.set_activation_policy(tauri::ActivationPolicy::Regular)?;
     }
 
-    if let Some(window) = app.get_webview_window(MANAGER_WINDOW) {
+    if let Some(window) = app.get_webview_window(PREFERENCES_WINDOW) {
         window.show()?;
         window.set_focus()?;
     }
@@ -86,7 +83,7 @@ pub fn show_manager(app: &AppHandle) -> tauri::Result<()> {
 /// `#[non_exhaustive]`, so this cannot be an exhaustive match.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
     if let WindowEvent::CloseRequested { api, .. } = event {
-        if window.label() != MANAGER_WINDOW {
+        if window.label() != PREFERENCES_WINDOW {
             return;
         }
         api.prevent_close();
@@ -103,27 +100,14 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
 
 fn handle_menu(app: &AppHandle, item: &str) {
     match item {
-        id::NEW => {
-            let _ = show_manager(app);
-            let _ = app.emit(event::NEW_PROFILE, ());
-        }
         id::LOCATE => {
-            let _ = show_manager(app);
+            let _ = show_preferences(app);
             let _ = app.emit(event::LOCATE_BINARY, ());
         }
-        id::MANAGE | id::MORE => {
-            let _ = show_manager(app);
+        id::PREFERENCES | id::MORE => {
+            let _ = show_preferences(app);
         }
         id::QUIT => app.exit(0),
-        id::UPDATE => {
-            let app = app.clone();
-            std::thread::spawn(move || {
-                let outcome = tauri::async_runtime::block_on(crate::updater::check_for_updates(
-                    app.clone(),
-                ));
-                let _ = app.emit(event::UPDATE_RESULT, outcome.ok());
-            });
-        }
         other => {
             if let Some(profile_id) = other.strip_prefix(id::LAUNCH_PREFIX) {
                 let _ = profile::launch(profile_id);
@@ -144,10 +128,12 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
     sort_for_display(&mut profiles);
     let binary_ok = platform::current().find_claude_binary().is_ok();
 
+    let version = version_item(app)?;
     let status = status_items(app, binary_ok)?;
     let rows = profile_items(app, &profiles, binary_ok)?;
+    let preferences = preferences_item(app)?;
 
-    let mut b = MenuBuilder::new(app);
+    let mut b = MenuBuilder::new(app).item(&version).separator();
     for entry in &status {
         b = b.item(entry);
     }
@@ -158,24 +144,41 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
         b = b.item(entry);
     }
     b.separator()
-        .text(id::NEW, LABEL_NEW)
-        .text(id::MANAGE, LABEL_MANAGE)
-        .separator()
-        .text(id::UPDATE, LABEL_UPDATE)
+        .item(&preferences)
         .text(id::QUIT, quit_label())
         .build()
 }
 
-/// `New Profile…` is removed, not disabled: creating a profile writes the registry, and cdm
-/// must never write over a file it could not read.
+/// Preferences still opens: its Profiles tab is where the rebuild lives. Nothing here writes the
+/// registry, because cdm must never write over a file it could not read.
 fn broken_registry_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let version = version_item(app)?;
     let status = item(app, id::STATUS, LABEL_REGISTRY_BROKEN, false)?;
     MenuBuilder::new(app)
+        .item(&version)
+        .separator()
         .item(&status)
-        .text(id::MANAGE, LABEL_OPEN_MANAGER)
+        .text(id::PREFERENCES, LABEL_OPEN_PREFERENCES)
         .separator()
         .text(id::QUIT, quit_label())
         .build()
+}
+
+/// The running version, straight from the bundle: `tauri.conf.json` is its only source.
+fn version_item(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
+    let info = app.package_info();
+    item(
+        app,
+        id::VERSION,
+        format!("{} {}", info.name, info.version),
+        false,
+    )
+}
+
+fn preferences_item(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
+    MenuItemBuilder::with_id(id::PREFERENCES, LABEL_PREFERENCES)
+        .accelerator(PREFERENCES_ACCELERATOR)
+        .build(app)
 }
 
 fn status_items(app: &AppHandle, binary_ok: bool) -> tauri::Result<Vec<MenuItem<Wry>>> {

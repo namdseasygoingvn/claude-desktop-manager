@@ -1,4 +1,6 @@
 import {
+  appVersion,
+  checkForUpdates,
   hideWindow,
   launchProfile,
   listAdoptable,
@@ -30,13 +32,16 @@ import { filterProfiles, renderSidebar, sortProfiles } from "./views/list";
 import { openMenu } from "./views/menu";
 import { matches, platform, shortcuts } from "./views/platform";
 import { openRenameSheet } from "./views/rename";
+import { renderTabs, type TabId } from "./views/tabs";
 import { renderToolbar, rowMenu, type CommandActions } from "./views/toolbar";
+import { renderUpdates, type UpdateState } from "./views/updates";
 
 const LAUNCH_FEEDBACK_MS = 3000;
 
 const root = document.getElementById("app") as HTMLElement;
 
 const state = {
+  tab: "profiles" as TabId,
   profiles: [] as ProfileStatus[],
   candidates: [] as AdoptCandidate[],
   selectedId: null as string | null,
@@ -45,6 +50,8 @@ const state = {
   missing: new Set<string>(),
   bannerDismissed: false,
   fatal: null as CdmError | null,
+  version: "",
+  update: { phase: "idle" } as UpdateState,
 };
 
 document.documentElement.dataset.platform = platform;
@@ -103,19 +110,63 @@ function render(): void {
 }
 
 function panes(): HTMLElement[] {
+  const tabs = renderTabs({ active: state.tab, onSelect: selectTab });
+  return [tabs, state.tab === "updates" ? updatesPane() : profilesPane()];
+}
+
+function selectTab(tab: TabId): void {
+  state.tab = tab;
+  render();
+  root.querySelector<HTMLElement>(`[data-focus-key="tab-${tab}"]`)?.focus();
+}
+
+function pane(kind: string, children: HTMLElement[]): HTMLElement {
+  const element = document.createElement("div");
+  element.className = `pane pane-${kind}`;
+  element.setAttribute("role", "tabpanel");
+  element.append(...children);
+  return element;
+}
+
+function profilesPane(): HTMLElement {
   if (state.fatal) {
-    return [renderRegistryError(state.fatal, () => void refresh(), () => void refresh())];
+    return pane("plain", [
+      renderRegistryError(state.fatal, () => void refresh(), () => void refresh()),
+    ]);
   }
   if (state.profiles.length === 0) {
-    return [
-      renderEmpty({
-        adoptable: state.candidates.length > 0,
-        onNew: newProfile,
-        onAdopt: adopt,
-      }),
-    ];
+    return pane("plain", [
+      renderEmpty({ adoptable: state.candidates.length > 0, onNew: newProfile, onAdopt: adopt }),
+    ]);
   }
-  return manager();
+  return pane("profiles", manager());
+}
+
+function updatesPane(): HTMLElement {
+  return pane("settings", [
+    renderUpdates({ version: state.version, state: state.update, onCheck: runUpdateCheck }),
+  ]);
+}
+
+function runUpdateCheck(): void {
+  if (state.update.phase === "checking") return;
+  state.update = { phase: "checking" };
+  render();
+
+  void checkForUpdates()
+    .then((outcome) => {
+      state.update =
+        outcome.status === "installed"
+          ? { phase: "installed", version: outcome.version }
+          : { phase: "upToDate" };
+    })
+    .catch((error: CdmError) => {
+      state.update = { phase: "failed", detail: error.message };
+    })
+    .finally(() => {
+      render();
+      root.querySelector<HTMLElement>('[data-focus-key="check-updates"]')?.focus();
+    });
 }
 
 function manager(): HTMLElement[] {
@@ -300,10 +351,14 @@ function onKeydown(event: KeyboardEvent): void {
 
   if (matches(event, shortcuts.newProfile)) {
     event.preventDefault();
+    // Creating from the Updates tab has to land somewhere visible.
+    state.tab = "profiles";
     newProfile();
   } else if (matches(event, shortcuts.hideWindow)) {
     event.preventDefault();
     hideWindow();
+  } else if (state.tab !== "profiles") {
+    return;
   } else if (!typing && matches(event, shortcuts.reveal)) {
     event.preventDefault();
     reveal();
@@ -321,8 +376,18 @@ function onKeydown(event: KeyboardEvent): void {
 
 /** §6 — the window is shown from the tray: land on the list with the previous row selected. */
 function focusEntry(): void {
+  if (state.tab !== "profiles") {
+    root.querySelector<HTMLElement>(`[data-focus-key="tab-${state.tab}"]`)?.focus();
+    return;
+  }
   const row = root.querySelector<HTMLElement>('[data-focus-key^="row-"][aria-selected="true"]');
   (row ?? root.querySelector<HTMLElement>('[data-focus-key="new-profile"]'))?.focus();
+}
+
+/** The tray shows the version too; both read the one in `tauri.conf.json`. */
+async function loadVersion(): Promise<void> {
+  state.version = await appVersion();
+  render();
 }
 
 document.addEventListener("keydown", onKeydown);
@@ -330,10 +395,12 @@ onWindowShown(() => {
   if (isDialogOpen()) return;
   void refresh().then(focusEntry);
 });
-onTrayEvent("newProfile", newProfile);
-onTrayEvent("locateBinary", () => showBinaryNotFound(() => void refresh()));
+onTrayEvent("locateBinary", () => {
+  selectTab("profiles");
+  showBinaryNotFound(() => void refresh());
+});
 
 void refresh().then(() => {
   focusEntry();
-  return discover();
+  return Promise.all([discover(), loadVersion()]);
 });

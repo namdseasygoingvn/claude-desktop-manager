@@ -53,6 +53,26 @@ const deleteLoss =
 export const t = {
   appName: "Claude Desktop Manager",
 
+  tabs: {
+    label: "Preferences sections",
+    profiles: "Profiles",
+    updates: "Updates",
+  },
+
+  updates: {
+    heading: "Updates",
+    version: (version: string) => `Version ${version}`,
+    check: "Check for Updates",
+    checking: "Checking…",
+    upToDate: "cdm is up to date.",
+    installed: (version: string) =>
+      `Version ${version} is installed. It starts running the next time you open cdm.`,
+    // The running process keeps the old code on purpose: restarting would kill the profiles it spawned.
+    installedHint: "Your running profiles are untouched.",
+    failed: "Couldn't check for updates.",
+    auto: "cdm checks for updates on its own every few hours.",
+  },
+
   empty: {
     heading: "No profiles yet",
     body: "A profile is a separate Claude Desktop — its own login, its own MCP servers, its own chats. Nothing you already have in Claude Desktop is changed or moved.",

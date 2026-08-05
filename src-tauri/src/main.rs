@@ -34,7 +34,7 @@ fn cli_invocation(args: &[String]) -> Option<Vec<String>> {
 fn run_manager() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            let _ = tray::show_manager(app);
+            let _ = tray::show_preferences(app);
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
