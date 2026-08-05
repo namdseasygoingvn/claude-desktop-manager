@@ -199,7 +199,16 @@ button {
   border-bottom: 1px solid var(--line);
 }
 
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
 .toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 28px;
   min-width: 32px;
   padding: 0 8px;
@@ -395,7 +404,13 @@ button {
   flex: 1;
 }
 
+.banner-icon {
+  color: var(--accent);
+}
+
 .banner-dismiss {
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: 0;
   padding: 4px 6px;

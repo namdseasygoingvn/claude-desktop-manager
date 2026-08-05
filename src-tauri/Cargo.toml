@@ -7,7 +7,7 @@ description = "Create, name, and launch isolated Claude Desktop profiles"
 license = "MIT"
 
 [build-dependencies]
-tauri-build = "2"
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2.11.5", features = ["tray-icon", "image-png"] }

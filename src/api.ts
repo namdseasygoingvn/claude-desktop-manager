@@ -133,10 +133,10 @@ export const adoptFolder = (dirName: string, displayName: string) =>
 export const openConfig = (id: string) => call<void>("open_config", { id });
 export const doctor = () => call<DoctorReport>("doctor");
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
+export const revealProfile = (id: string) => call<void>("reveal_profile", { id });
 
 // Beyond the agreed command contract. Every flow below is specified by plan/03 but has no
 // command yet; each caller degrades to the plan's error path when the backend rejects.
-export const revealProfile = (id: string) => call<void>("reveal_profile", { id });
 export const locateBinary = () => call<string | null>("locate_binary");
 export const locateFolder = (id: string) => call<void>("locate_folder", { id });
 export const removeFromList = (id: string) => call<void>("remove_from_list", { id });

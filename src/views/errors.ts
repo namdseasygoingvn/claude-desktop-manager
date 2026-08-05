@@ -11,7 +11,15 @@ import {
 import { openDialog, type DialogButton } from "./dialog";
 import { t } from "./strings";
 
-export type Operation = "launch" | "create" | "rename" | "delete" | "quit" | "adopt" | "config";
+export type Operation =
+  | "launch"
+  | "create"
+  | "rename"
+  | "delete"
+  | "quit"
+  | "adopt"
+  | "config"
+  | "reveal";
 
 export interface ErrorContext {
   operation: Operation;

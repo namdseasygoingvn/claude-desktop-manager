@@ -319,7 +319,9 @@ function editConfig(): void {
 function reveal(): void {
   const status = selected();
   if (!status) return;
-  void revealProfile(status.profile.id).catch(() => undefined);
+  void revealProfile(status.profile.id).catch((error: CdmError) =>
+    reportError(error, { operation: "reveal", profile: status.profile }),
+  );
 }
 
 function adopt(): void {

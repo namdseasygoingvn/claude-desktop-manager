@@ -1,6 +1,7 @@
 import { adoptFolder, type AdoptCandidate, type CdmError } from "../api";
 import { openDialog, textField } from "./dialog";
 import { showNotice } from "./errors";
+import { icon, Info, X } from "./icons";
 import { t } from "./strings";
 
 export interface AdoptOptions {
@@ -16,10 +17,8 @@ export function renderAdoptBanner(
   const banner = document.createElement("div");
   banner.className = "banner";
 
-  const icon = document.createElement("span");
-  icon.className = "banner-icon";
-  icon.textContent = "ℹ";
-  icon.setAttribute("aria-hidden", "true");
+  const badge = icon(Info);
+  badge.classList.add("banner-icon");
 
   const text = document.createElement("span");
   text.className = "banner-text";
@@ -35,12 +34,12 @@ export function renderAdoptBanner(
   const dismiss = document.createElement("button");
   dismiss.type = "button";
   dismiss.className = "banner-dismiss";
-  dismiss.textContent = "✕";
+  dismiss.append(icon(X));
   dismiss.setAttribute("aria-label", t.adopt.dismiss);
   dismiss.title = t.adopt.dismiss;
   dismiss.addEventListener("click", onDismiss);
 
-  banner.append(icon, text, review, dismiss);
+  banner.append(badge, text, review, dismiss);
   return banner;
 }
 

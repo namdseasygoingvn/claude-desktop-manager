@@ -1,3 +1,4 @@
+import { ChevronDown, Ellipsis, icon, Minus, Plus, type IconNode } from "./icons";
 import { openMenu, type MenuEntry } from "./menu";
 import { isMac } from "./platform";
 import { nouns, t } from "./strings";
@@ -22,19 +23,19 @@ export function renderToolbar(state: CommandState, actions: CommandActions): HTM
   const bar = document.createElement("div");
   bar.className = "toolbar";
 
-  const create = iconButton(t.list.newProfile, isMac ? "⊞" : `⊞ ${t.list.newProfile}`);
+  const create = iconButton(t.list.newProfile, Plus, !isMac);
   create.dataset.focusKey = "new-profile";
   create.addEventListener("click", actions.newProfile);
   bar.append(create);
 
   if (isMac) {
-    const remove = iconButton(t.list.deleteProfile, "⊟");
+    const remove = iconButton(t.list.deleteProfile, Minus);
     remove.disabled = !state.hasSelection;
     remove.addEventListener("click", actions.remove);
     bar.append(remove);
   }
 
-  const more = iconButton(t.list.moreActions, isMac ? "⋯" : "▾");
+  const more = iconButton(t.list.moreActions, isMac ? Ellipsis : ChevronDown);
   more.setAttribute("aria-haspopup", "menu");
   more.addEventListener("click", () => openMenu(moreMenu(state, actions), more));
   bar.append(more);
@@ -69,12 +70,17 @@ export function rowMenu(id: string, actions: CommandActions): MenuEntry[] {
   ];
 }
 
-function iconButton(label: string, glyph: string): HTMLButtonElement {
+function iconButton(label: string, glyph: IconNode, withLabel = false): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "toolbar-button";
   button.title = label;
   button.setAttribute("aria-label", label);
-  button.textContent = glyph;
+  button.append(icon(glyph));
+  if (withLabel) {
+    const text = document.createElement("span");
+    text.textContent = label;
+    button.append(text);
+  }
   return button;
 }

@@ -278,6 +278,24 @@ driven without the GUI, primarily to prove launch and isolation on a fresh OS.
 | `cdm delete <name>` | confirm, trash the folder, unregister |
 | `cdm doctor` | binary discovery, registry/disk reconciliation report |
 
+## Debug MCP server
+
+Also not the product surface. The manager embeds a loopback MCP server (Streamable HTTP, no
+dependencies) so Claude Code can inspect and drive the running process — the CLI's counterpart
+for the GUI, where the CLI can only drive a separate one.
+
+Every tool is a thin adapter over the same `commands::` function the window calls, so a tool
+cannot drift from the real path. Eighteen of them: `get_app_info`, `get_logs`, `list_profiles`,
+`get_profile`, `list_adoptable`, `read_registry`, `read_config`, `doctor`, `create_profile`,
+`launch_profile`, `quit_profile`, `rename_profile`, `delete_profile`, `adopt_folder`,
+`reveal_profile`, `open_config`, `show_preferences`, `rebuild_tray`.
+
+Bound to `127.0.0.1` only and Origin-guarded against DNS rebinding. **On by default in debug
+builds only** — a loopback endpoint that can delete profiles is a development affordance, not a
+shipped one. `CDM_MCP_PORT` overrides the port and is what enables it in a release build; `off`
+disables it, `0` takes any free port. The committed `.mcp.json` points Claude Code at the
+default port, so running `claude` from this repo connects automatically.
+
 ## Build order
 
 1. **Core + adapter + debug CLI, no GUI.** Proves `--user-data-dir` isolation and concurrent

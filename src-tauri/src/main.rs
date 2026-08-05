@@ -3,6 +3,7 @@
 mod cli;
 mod commands;
 mod core;
+mod mcp;
 mod platform;
 mod tray;
 mod updater;
@@ -38,7 +39,16 @@ fn run_manager() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Dispatch(
+                        tauri_plugin_log::fern::Dispatch::new()
+                            .chain(Box::new(mcp::LogSink) as Box<dyn log::Log>),
+                    ),
+                ))
+                .build(),
+        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
@@ -51,6 +61,7 @@ fn run_manager() {
             commands::list_adoptable,
             commands::adopt_folder,
             commands::open_config,
+            commands::reveal_profile,
             commands::doctor,
             updater::check_for_updates,
         ])
@@ -61,6 +72,7 @@ fn run_manager() {
             reconcile_at_startup();
             tray::init(app.handle())?;
             updater::spawn_background_check(app.handle());
+            mcp::start(app.handle());
             Ok(())
         })
         .on_window_event(tray::on_window_event)

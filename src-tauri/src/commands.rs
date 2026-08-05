@@ -108,6 +108,12 @@ pub fn open_config(id: String) -> CmdResult<()> {
 }
 
 #[tauri::command]
+pub fn reveal_profile(id: String) -> CmdResult<()> {
+    let dir = profile_dir(&id)?;
+    tauri_plugin_opener::reveal_item_in_dir(dir).map_err(|e| CdmError::Io(e.to_string()).into())
+}
+
+#[tauri::command]
 pub fn doctor(app: AppHandle) -> CmdResult<DoctorReport> {
     let (binary, binary_error) = match platform::current().find_claude_binary() {
         Ok(path) => (Some(path.display().to_string()), None),
@@ -127,15 +133,19 @@ pub fn doctor(app: AppHandle) -> CmdResult<DoctorReport> {
     })
 }
 
-fn config_path(id: &str) -> CmdResult<PathBuf> {
+pub fn profile_dir(id: &str) -> CmdResult<PathBuf> {
     let dir = profile::list()?
         .into_iter()
         .find(|s| s.profile.id == id)
         .map(|s| s.profile.dir)
         .ok_or_else(|| CommandError::from(CdmError::ProfileNotFound(id.to_string())))?;
-    Ok(profiles_root()?.join(dir).join(CONFIG_FILE))
+    Ok(profiles_root()?.join(dir))
 }
 
-fn profiles_root() -> CmdResult<PathBuf> {
+pub fn config_path(id: &str) -> CmdResult<PathBuf> {
+    Ok(profile_dir(id)?.join(CONFIG_FILE))
+}
+
+pub fn profiles_root() -> CmdResult<PathBuf> {
     Ok(platform::current().profiles_root()?)
 }
