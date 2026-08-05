@@ -61,6 +61,27 @@ jobs:
           git commit -am "Release v${{ steps.bump.outputs.version }} [skip ci]"
           git push
 
+  # Tests are host-arch and platform-agnostic, so one job covers them. No `needs`, so
+  # they start alongside the bump instead of inside a build job that then waits on
+  # them. --locked fails if Cargo.lock has drifted from Cargo.toml.
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Test artifacts are dev-profile, so they get a key of their own rather than
+      # fighting a build job over its release-profile cache.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: test
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test --locked
+
   # One job per target. The two macOS arches used to be one universal build, which
   # compiled the whole app twice in series; as separate jobs they overlap instead.
   build:
@@ -71,7 +92,6 @@ jobs:
         include:
           - os: macos-latest
             target: aarch64-apple-darwin
-            test: true
           - os: macos-latest
             target: x86_64-apple-darwin
           - os: windows-latest
@@ -99,13 +119,6 @@ jobs:
           key: ${{ matrix.target }}
 
       - run: npm ci
-
-      # Tests are host-arch and platform-agnostic, so one job covers them. --locked
-      # fails the build if Cargo.lock has drifted from Cargo.toml.
-      - name: Test
-        if: matrix.test
-        working-directory: src-tauri
-        run: cargo test --locked
 
       # tauri-action builds, signs the update artifacts, publishes the release, and
       # generates the latest.json the updater reads. Parallel jobs merge into one
