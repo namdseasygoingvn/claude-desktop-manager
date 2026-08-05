@@ -1,5 +1,5 @@
 import type { ProfileStatus } from "../api";
-import { FolderOpen, icon } from "./icons";
+import { FolderOpen, icon, Pencil } from "./icons";
 import { t } from "./strings";
 
 export interface DetailActions {
@@ -37,7 +37,12 @@ export function renderDetail(props: DetailProps): HTMLElement {
   secondLine.className = "detail-status";
   secondLine.textContent = statusLine(props, running);
 
-  pane.append(heading, secondLine);
+  const head = document.createElement("div");
+  head.className = "detail-head";
+  head.append(heading);
+  if (!props.missing) head.append(renameButton(props.actions.rename));
+
+  pane.append(head, secondLine);
 
   if (props.missing) {
     pane.append(orphanBody(props.actions));
@@ -72,10 +77,6 @@ export function renderDetail(props: DetailProps): HTMLElement {
 
   launchRow.append(launch, reveal);
 
-  const row = document.createElement("div");
-  row.className = "detail-actions";
-  row.append(action(t.detail.rename, "rename", props.actions.rename));
-
   const rule = document.createElement("hr");
 
   const created = document.createElement("p");
@@ -89,8 +90,20 @@ export function renderDetail(props: DetailProps): HTMLElement {
   remove.dataset.focusKey = "delete";
   remove.addEventListener("click", props.actions.remove);
 
-  pane.append(launch, row, rule, created, remove);
+  pane.append(launchRow, rule, created, remove);
   return pane;
+}
+
+function renameButton(onClick: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "detail-rename";
+  button.title = t.detail.rename;
+  button.setAttribute("aria-label", t.detail.rename);
+  button.dataset.focusKey = "rename";
+  button.append(icon(Pencil));
+  button.addEventListener("click", onClick);
+  return button;
 }
 
 function statusLine(props: DetailProps, running: boolean): string {

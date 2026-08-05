@@ -269,7 +269,7 @@ button {
 
 .profile-row {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
   min-height: var(--row-height);
   padding: 4px 6px;
@@ -296,30 +296,8 @@ button {
   color: var(--text-dim);
 }
 
-.profile-row .row-rename {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  color: var(--text-dim);
-  cursor: default;
-}
-
-.profile-row .row-rename:hover {
-  background: var(--selected);
-  color: var(--text);
-}
-
 .profile-row .row-grip {
-  grid-column: 4;
+  grid-column: 3;
   grid-row: 1 / span 2;
   align-self: center;
   display: inline-flex;
@@ -447,8 +425,7 @@ button {
 }
 
 .profile-row.is-missing .row-name,
-.profile-row.is-missing .row-secondary,
-.profile-row.is-missing .row-rename {
+.profile-row.is-missing .row-secondary {
   opacity: 0.6;
 }
 
@@ -458,10 +435,41 @@ button {
   padding: 24px 28px;
 }
 
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .detail-name {
   margin: 0;
+  min-width: 0;
   font-size: 20px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-rename {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.detail-rename:hover {
+  background: var(--selected);
+  color: var(--text);
 }
 
 .detail-status {
