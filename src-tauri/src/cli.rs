@@ -41,7 +41,7 @@ fn core_err(e: impl std::fmt::Display) -> Fail {
 }
 
 fn row(s: &ProfileStatus) -> Row<'_> {
-    (&s.profile.id, &s.profile.name, &s.profile.dir, s.running)
+    (&s.profile.id, &s.profile.name, &s.profile.dir, s.running_pid.is_some())
 }
 
 pub fn run(args: Vec<String>) -> i32 {
@@ -136,7 +136,7 @@ fn launch(pos: &[&str], wait: bool) -> R {
     println!("{pid}\t{dir}");
     if wait {
         while profile::list()
-            .map(|l| l.iter().any(|s| row(s).0 == id && s.running))
+            .map(|l| l.iter().any(|s| row(s).0 == id && row(s).3))
             .unwrap_or(false)
         {
             std::thread::sleep(std::time::Duration::from_secs(1));
@@ -177,7 +177,10 @@ fn doctor() -> R {
     }
     match other_instance_pid() {
         Some(pid) => println!("reconcile\tskipped: cdm pid {pid} may write registry.json"),
-        None => println!("reconcile\t{:?}", registry::reconcile()),
+        None => match registry::load().and_then(|mut r| registry::reconcile(&mut r)) {
+            Ok(found) => println!("reconcile\t{found:?}"),
+            Err(e) => println!("reconcile\tunavailable: {e}"),
+        },
     }
     list()
 }

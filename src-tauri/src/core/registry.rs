@@ -10,7 +10,7 @@ use tempfile::NamedTempFile;
 use super::naming::is_safe_dir;
 use super::profile::MARKER_FILE;
 use super::types::{CdmError, Registry, Result, REGISTRY_VERSION};
-use crate::platform::{self, Platform};
+use crate::platform;
 
 const REGISTRY_FILE: &str = "registry.json";
 const PERSIST_ATTEMPTS: u32 = 5;

@@ -109,14 +109,15 @@ pub fn doctor(app: AppHandle) -> CmdResult<DoctorReport> {
         Err(e) => (None, Some(CommandError::from(e))),
     };
 
-    let reconcile = serde_json::to_value(registry::reconcile()?)
-        .unwrap_or(serde_json::Value::Null);
+    let mut reg = registry::load()?;
+    let reconcile =
+        serde_json::to_value(registry::reconcile(&mut reg)?).unwrap_or(serde_json::Value::Null);
     let _ = tray::rebuild(&app);
 
     Ok(DoctorReport {
         binary,
         binary_error,
-        profiles_root: profiles_root().display().to_string(),
+        profiles_root: profiles_root()?.display().to_string(),
         reconcile,
     })
 }
@@ -127,9 +128,9 @@ fn config_path(id: &str) -> CmdResult<PathBuf> {
         .find(|s| s.profile.id == id)
         .map(|s| s.profile.dir)
         .ok_or_else(|| CommandError::from(CdmError::ProfileNotFound(id.to_string())))?;
-    Ok(profiles_root().join(dir).join(CONFIG_FILE))
+    Ok(profiles_root()?.join(dir).join(CONFIG_FILE))
 }
 
-fn profiles_root() -> PathBuf {
-    platform::current().profiles_root()
+fn profiles_root() -> CmdResult<PathBuf> {
+    Ok(platform::current().profiles_root()?)
 }

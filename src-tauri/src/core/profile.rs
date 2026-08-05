@@ -12,7 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use super::naming;
 use super::registry;
 use super::types::{CdmError, Profile, ProfileStatus, Registry, Result};
-use crate::platform::{self, Platform};
+use crate::platform;
 
 pub const MARKER_FILE: &str = ".cdm-profile";
 pub const CONFIG_FILE: &str = "claude_desktop_config.json";
@@ -158,7 +158,7 @@ pub fn quit(id: &str) -> Result<()> {
 pub fn adopt(dir_name: &str, display_name: &str) -> Result<Profile> {
     let name = non_empty(display_name)?;
     let dir_name = single_component(dir_name)?;
-    if dir_name.eq_ignore_ascii_case(UNMANAGED_DIR) {
+    if naming::same_folder(dir_name, UNMANAGED_DIR) {
         return Err(CdmError::Other(format!(
             "{UNMANAGED_DIR} is the existing unmanaged install; cdm leaves it alone"
         )));
@@ -175,7 +175,7 @@ pub fn adopt(dir_name: &str, display_name: &str) -> Result<Profile> {
     let claimed = reg
         .profiles
         .iter()
-        .any(|p| p.dir.eq_ignore_ascii_case(dir_name));
+        .any(|p| naming::same_folder(&p.dir, dir_name));
     if marker.exists() || claimed {
         return Err(CdmError::DirExists(dir_name.to_string()));
     }
@@ -239,7 +239,7 @@ fn write_file(path: &Path, contents: &str) -> Result<()> {
 /// folder and be handed a `-2` suffix.
 fn folder_matches(folder: &str, name: &str) -> bool {
     let stem = folder.split_once('-').map_or(folder, |(_, stem)| stem);
-    stem.to_lowercase() == naming::slug(name).to_lowercase()
+    naming::same_folder(stem, &naming::slug(name))
 }
 
 fn single_component(dir_name: &str) -> Result<&str> {
