@@ -26,10 +26,10 @@ export interface AdoptCandidate {
   suggestedName: string;
 }
 
-/** The check installs when something is there, so `installed` is a completed download. */
+/** The check only looks; installing is a separate, explicit step. */
 export type UpdateOutcome =
   | { status: "upToDate"; version: string }
-  | { status: "installed"; version: string };
+  | { status: "available"; version: string };
 
 /** Owned by the backend; the frontend only ever stringifies it into Copy Details. */
 export type DoctorReport = Record<string, unknown>;
@@ -133,6 +133,7 @@ export const adoptFolder = (dirName: string, displayName: string) =>
 export const openConfig = (id: string) => call<void>("open_config", { id });
 export const doctor = () => call<DoctorReport>("doctor");
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
+export const installUpdate = () => call<string>("install_update");
 export const revealProfile = (id: string) => call<void>("reveal_profile", { id });
 
 // Beyond the agreed command contract. Every flow below is specified by plan/03 but has no

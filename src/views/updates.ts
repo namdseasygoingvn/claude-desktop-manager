@@ -4,13 +4,16 @@ export type UpdateState =
   | { phase: "idle" }
   | { phase: "checking" }
   | { phase: "upToDate"; version: string }
+  | { phase: "available"; version: string }
+  | { phase: "installing"; version: string }
   | { phase: "installed"; version: string }
-  | { phase: "failed"; detail: string };
+  | { phase: "failed"; step: "check" | "install"; detail: string };
 
 export interface UpdatesOptions {
   version: string;
   state: UpdateState;
   onCheck: () => void;
+  onUpdate: () => void;
 }
 
 export function renderUpdates(options: UpdatesOptions): HTMLElement {
@@ -24,32 +27,52 @@ export function renderUpdates(options: UpdatesOptions): HTMLElement {
   version.className = "settings-value";
   version.textContent = t.updates.version(options.version);
 
-  const check = document.createElement("button");
-  check.type = "button";
-  check.className = "button primary";
-  check.dataset.focusKey = "check-updates";
-  const busy = options.state.phase === "checking";
-  check.textContent = busy ? t.updates.checking : t.updates.check;
-  check.disabled = busy;
+  const checking = options.state.phase === "checking";
+  const check = button("check-updates", checking ? t.updates.checking : t.updates.check);
+  check.disabled = checking || options.state.phase === "installing";
   check.addEventListener("click", options.onCheck);
 
   pane.append(heading, version, check);
-  for (const line of outcome(options.state)) pane.append(line);
+  for (const line of outcome(options)) pane.append(line);
 
   return pane;
 }
 
-function outcome(state: UpdateState): HTMLElement[] {
+function outcome(options: UpdatesOptions): HTMLElement[] {
+  const state = options.state;
   switch (state.phase) {
     case "upToDate":
       return [status(t.updates.upToDate(state.version), "is-ok")];
+    case "available":
+    case "installing":
+      return [status(t.updates.available(state.version)), update(options, state.phase)];
     case "installed":
       return [status(t.updates.installed(state.version)), helper(t.updates.installedHint)];
     case "failed":
-      return [status(t.updates.failed, "is-failed"), helper(state.detail)];
+      return [
+        status(state.step === "check" ? t.updates.checkFailed : t.updates.installFailed, "is-failed"),
+        helper(state.detail),
+      ];
     default:
       return [];
   }
+}
+
+function update(options: UpdatesOptions, phase: "available" | "installing"): HTMLElement {
+  const busy = phase === "installing";
+  const element = button("install-update", busy ? t.updates.installing : t.updates.update);
+  element.disabled = busy;
+  element.addEventListener("click", options.onUpdate);
+  return element;
+}
+
+function button(focusKey: string, label: string): HTMLButtonElement {
+  const element = document.createElement("button");
+  element.type = "button";
+  element.className = "button primary";
+  element.dataset.focusKey = focusKey;
+  element.textContent = label;
+  return element;
 }
 
 function status(text: string, tone?: "is-ok" | "is-failed"): HTMLElement {

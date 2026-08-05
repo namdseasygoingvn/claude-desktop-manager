@@ -2,6 +2,7 @@ import {
   appVersion,
   checkForUpdates,
   hideWindow,
+  installUpdate,
   launchProfile,
   listAdoptable,
   listProfiles,
@@ -144,29 +145,55 @@ function profilesPane(): HTMLElement {
 
 function updatesPane(): HTMLElement {
   return pane("settings", [
-    renderUpdates({ version: state.version, state: state.update, onCheck: runUpdateCheck }),
+    renderUpdates({
+      version: state.version,
+      state: state.update,
+      onCheck: runUpdateCheck,
+      onUpdate: runUpdateInstall,
+    }),
   ]);
 }
 
 function runUpdateCheck(): void {
-  if (state.update.phase === "checking") return;
+  if (state.update.phase === "checking" || state.update.phase === "installing") return;
   state.update = { phase: "checking" };
   render();
 
   void checkForUpdates()
     .then((outcome) => {
       state.update =
-        outcome.status === "installed"
-          ? { phase: "installed", version: outcome.version }
+        outcome.status === "available"
+          ? { phase: "available", version: outcome.version }
           : { phase: "upToDate", version: outcome.version };
     })
     .catch((error: CdmError) => {
-      state.update = { phase: "failed", detail: error.message };
+      state.update = { phase: "failed", step: "check", detail: error.message };
     })
-    .finally(() => {
-      render();
-      root.querySelector<HTMLElement>('[data-focus-key="check-updates"]')?.focus();
-    });
+    .finally(settleUpdate);
+}
+
+function runUpdateInstall(): void {
+  if (state.update.phase !== "available") return;
+  state.update = { phase: "installing", version: state.update.version };
+  render();
+
+  void installUpdate()
+    .then((version) => {
+      state.update = { phase: "installed", version };
+    })
+    .catch((error: CdmError) => {
+      state.update = { phase: "failed", step: "install", detail: error.message };
+    })
+    .finally(settleUpdate);
+}
+
+/** Focus lands on whatever the pane now offers: Update when one is waiting, otherwise Check. */
+function settleUpdate(): void {
+  render();
+  const next =
+    root.querySelector<HTMLElement>('[data-focus-key="install-update"]') ??
+    root.querySelector<HTMLElement>('[data-focus-key="check-updates"]');
+  next?.focus();
 }
 
 function manager(): HTMLElement[] {

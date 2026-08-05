@@ -50,8 +50,10 @@ const trashRecovery = isMac
 const deleteLoss =
   "You'll be signed out of Claude in this profile, and its chats, MCP servers and extensions go with it.";
 
+const appName = "Claude Desktop Manager";
+
 export const t = {
-  appName: "Claude Desktop Manager",
+  appName,
 
   tabs: {
     label: "Preferences sections",
@@ -65,11 +67,16 @@ export const t = {
     check: "Check for Updates",
     checking: "Checking…",
     upToDate: (version: string) => `You're up to date! Version is ${version}`,
+    available: (version: string) =>
+      `Version ${version} is ready to install! Click Update to install`,
+    update: "Update",
+    installing: "Installing…",
     installed: (version: string) =>
-      `Version ${version} is installed. It starts running the next time you open cdm.`,
+      `Version ${version} is installed. It starts running the next time you open ${appName}.`,
     // The running process keeps the old code on purpose: restarting would kill the profiles it spawned.
     installedHint: "Your running profiles are untouched.",
-    failed: "Couldn't check for updates.",
+    checkFailed: "Couldn't check for updates.",
+    installFailed: "Couldn't install the update.",
   },
 
   empty: {
@@ -112,15 +119,14 @@ export const t = {
 
   orphan: {
     secondLine: "Folder missing",
-    body: `cdm can't find this profile's folder in ${nouns.profilesRoot}. It may have been moved, renamed, or deleted outside cdm. Its login and chats live in that folder — cdm has no copy of them.`,
+    body: `${appName} can't find this profile's folder in ${nouns.profilesRoot}. It may have been moved, renamed, or deleted outside the app. Its login and chats live in that folder — ${appName} has no copy of them.`,
     locate: "Locate Folder…",
     remove: "Remove from List",
     belongsToOther: (name: string) => `That folder belongs to the profile ${q(name)}.`,
     outsideRootMessage: `Profiles have to live in ${nouns.profilesRoot}. Move the folder there and try again.`,
     revealFolder: "Reveal Folder",
     removeMessage: (name: string) => `Remove ${q(name)} from your profile list?`,
-    removeInformative:
-      "This only removes it from cdm. Nothing on your disk is deleted. If the folder turns up later you can add it back.",
+    removeInformative: `This only removes it from ${appName}. Nothing on your disk is deleted. If the folder turns up later you can add it back.`,
     removeConfirm: "Remove",
   },
 
@@ -133,7 +139,7 @@ export const t = {
     duplicate: (name: string) =>
       `You already have a profile named ${q(name)}. That's allowed — they'll be separate.`,
     failedMessage: (name: string) => `Couldn't create ${q(name)}.`,
-    failedFallback: "cdm couldn't finish creating the profile.",
+    failedFallback: `${appName} couldn't finish creating the profile.`,
   },
 
   rename: {
@@ -144,7 +150,7 @@ export const t = {
     runningWarning: (name: string) =>
       `${q(name)} is running and has to quit before it can be renamed. Your chats are saved; anything in progress will stop.`,
     failedMessage: (name: string) => `Couldn't rename ${q(name)}.`,
-    failedInformative: "cdm couldn't save the change to your profile list.",
+    failedInformative: `${appName} couldn't save the change to your profile list.`,
   },
 
   remove: {
@@ -163,13 +169,12 @@ export const t = {
     failedInformative:
       "Some of its files are still in use. Make sure Claude isn't running for this profile, then try again.",
     partialMessage: (name: string) => `${q(name)} was only partly deleted.`,
-    partialInformative:
-      "Some of its files couldn't be removed. cdm has left the profile in your list so you can try again.",
+    partialInformative: `Some of its files couldn't be removed. ${appName} has left the profile in your list so you can try again.`,
   },
 
   adopt: {
     title: "Add Existing Profiles",
-    body: "These folders look like Claude Desktop profiles. Adding one lets cdm launch it. cdm puts one small marker file in each folder you add — nothing else is changed, and nothing is moved.",
+    body: `These folders look like Claude Desktop profiles. Adding one lets ${appName} launch it. It puts one small marker file in each folder you add — nothing else is changed, and nothing is moved.`,
     nameLabel: "Name",
     submit: (count: number) => (count === 1 ? "Add Profile" : `Add ${count} Profiles`),
     banner: (count: number) =>
@@ -182,7 +187,7 @@ export const t = {
 
   binary: {
     message: "Can't find Claude Desktop.",
-    informative: `cdm launches the copy of Claude Desktop already installed on ${nouns.machine}, and couldn't find one.`,
+    informative: `${appName} launches the copy of Claude Desktop already installed on ${nouns.machine}, and couldn't find one.`,
     locate: "Locate Claude Desktop…",
     get: "Get Claude Desktop",
     wrongPickMessage: "That doesn't look like Claude Desktop.",
@@ -196,21 +201,20 @@ export const t = {
 
   quit: {
     stuckMessage: (name: string) => `${q(name)} isn't quitting.`,
-    stuckInformative:
-      "cdm asked Claude to quit and it hasn't. You can force it to close, but anything in progress will be lost.",
+    stuckInformative: `${appName} asked Claude to quit and it hasn't. You can force it to close, but anything in progress will be lost.`,
     force: "Force Quit",
   },
 
   registry: {
-    corruptHeading: "cdm can't read your profile list",
+    corruptHeading: `${appName} can't read your profile list`,
     corruptBody:
-      "The file that stores your profile names is damaged. Your profiles themselves are untouched — cdm just can't tell which is which.",
+      "The file that stores your profile names is damaged. Your profiles themselves are untouched — it just can't tell which is which.",
     corruptRebuild:
       "Rebuilding finds your profiles again. Some names may come back looking different, and you can rename them.",
     rebuild: "Rebuild List",
     showDamaged: "Show the Damaged File",
-    unreadableHeading: "cdm can't open your profile list",
-    unreadableBody: "Something is stopping cdm from reading its own settings.",
+    unreadableHeading: `${appName} can't open your profile list`,
+    unreadableBody: `Something is stopping ${appName} from reading its own settings.`,
     showFile: "Show the File",
   },
 

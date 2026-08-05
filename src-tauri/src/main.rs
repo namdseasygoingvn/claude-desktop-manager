@@ -64,6 +64,7 @@ fn run_manager() {
             commands::reveal_profile,
             commands::doctor,
             updater::check_for_updates,
+            updater::install_update,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
