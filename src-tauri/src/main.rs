@@ -6,6 +6,7 @@ mod core;
 mod mcp;
 mod platform;
 mod tray;
+mod tray_icons;
 mod updater;
 
 fn main() {
@@ -63,6 +64,12 @@ fn run_manager() {
             commands::open_config,
             commands::reveal_profile,
             commands::doctor,
+            commands::list_groups,
+            commands::create_group,
+            commands::rename_group,
+            commands::set_group_icon,
+            commands::delete_group,
+            commands::set_profile_group,
             updater::check_for_updates,
             updater::install_update,
         ])

@@ -5,8 +5,10 @@ import { nouns, t } from "./strings";
 
 export interface CommandActions {
   newProfile: () => void;
+  newGroup: () => void;
   launch: (id: string) => void;
   rename: () => void;
+  assignToGroup: () => void;
   editConfig: () => void;
   reveal: () => void;
   remove: () => void;
@@ -50,8 +52,10 @@ function moreMenu(state: CommandState, actions: CommandActions): MenuEntry[] {
     disabled: !state.hasCandidates,
     onSelect: actions.adopt,
   };
-  if (!isMac) return [addExisting];
+  const newGroup: MenuEntry = { label: t.groups.newGroup, onSelect: actions.newGroup };
+  if (!isMac) return [newGroup, addExisting];
   return [
+    newGroup,
     addExisting,
     { label: t.detail.rename, disabled: !state.hasSelection, onSelect: actions.rename },
     { label: nouns.revealItem, disabled: !state.hasSelection, onSelect: actions.reveal },
@@ -64,6 +68,7 @@ export function rowMenu(id: string, actions: CommandActions): MenuEntry[] {
     { label: t.detail.launch, onSelect: () => actions.launch(id) },
     { label: t.detail.rename, onSelect: actions.rename },
     { label: t.detail.editConfig, onSelect: actions.editConfig },
+    { label: t.groups.assignToGroup, onSelect: actions.assignToGroup },
     { label: nouns.revealItem, onSelect: actions.reveal },
     "separator",
     { label: t.detail.delete, destructive: true, onSelect: actions.remove },

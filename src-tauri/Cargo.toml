@@ -26,6 +26,10 @@ sysinfo = "0.39.6"
 unicode-normalization = "0.1.25"
 clap = { version = "4.6.5", features = ["derive"] }
 thiserror = "2.0.19"
+# Tray group icons: lucide SVG markup from tray_icons.rs rasterized to a menu image.
+usvg = { version = "0.45", default-features = false }
+resvg = { version = "0.45", default-features = false }
+tiny-skia = "0.11"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

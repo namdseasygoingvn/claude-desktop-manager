@@ -1,10 +1,15 @@
-use tauri::menu::{Menu, MenuBuilder, MenuId, MenuItem, MenuItemBuilder};
+use std::collections::HashSet;
+
+use tauri::image::Image;
+use tauri::menu::{Menu, MenuBuilder, MenuId, MenuItem, MenuItemBuilder, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, Window, WindowEvent, Wry};
 
+use crate::core::groups::{self, Group, GroupIcon};
 use crate::core::profile;
 use crate::core::types::ProfileStatus;
 use crate::platform;
+use crate::tray_icons;
 
 pub const TRAY_ID: &str = "cdm-tray";
 pub const PREFERENCES_WINDOW: &str = "main";
@@ -13,8 +18,11 @@ pub const PREFERENCES_WINDOW: &str = "main";
 const MAX_ROWS: usize = 20;
 const RUNNING_MARK: &str = "\u{25cf} ";
 const IDLE_MARK: &str = "   ";
+/// Menu icons render at 18pt on macOS; the 2x bitmap keeps them crisp on retina.
+const MENU_ICON_SIZE: u32 = 36;
 
 const LABEL_NO_PROFILES: &str = "No profiles yet";
+const LABEL_GROUP_EMPTY: &str = "No profiles in this group";
 const LABEL_BINARY_MISSING: &str = "\u{26a0} Claude Desktop not found";
 const LABEL_LOCATE: &str = "Locate Claude Desktop\u{2026}";
 const LABEL_REGISTRY_BROKEN: &str = "\u{26a0} Profile list unavailable";
@@ -33,6 +41,9 @@ mod id {
     pub const MORE: &str = "more";
     pub const QUIT: &str = "quit";
     pub const LAUNCH_PREFIX: &str = "launch:";
+    pub const GROUP_PREFIX: &str = "group:";
+    /// Suffix on a group's "More…" item; the whole id is `group:<gid>:more`.
+    pub const GROUP_MORE_SUFFIX: &str = ":more";
 }
 
 pub mod event {
@@ -112,6 +123,8 @@ fn handle_menu(app: &AppHandle, item: &str) {
             if let Some(profile_id) = other.strip_prefix(id::LAUNCH_PREFIX) {
                 let _ = profile::launch(profile_id);
                 let _ = rebuild(app);
+            } else if other.ends_with(id::GROUP_MORE_SUFFIX) {
+                let _ = show_preferences(app);
             }
         }
     }
@@ -130,7 +143,10 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
 
     let version = version_item(app)?;
     let status = status_items(app, binary_ok)?;
-    let rows = profile_items(app, &profiles, binary_ok)?;
+    // Groups cannot break the tray: one that cannot be read simply does not render.
+    let groups = groups::list().unwrap_or_default();
+    let group_menus = group_items(app, &groups, &profiles, binary_ok)?;
+    let rows = ungrouped_items(app, &groups, &profiles, binary_ok)?;
     let preferences = preferences_item(app)?;
 
     let mut b = MenuBuilder::new(app).item(&version).separator();
@@ -139,6 +155,9 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
     }
     if !status.is_empty() {
         b = b.separator();
+    }
+    for submenu in &group_menus {
+        b = b.item(submenu);
     }
     for entry in &rows {
         b = b.item(entry);
@@ -191,6 +210,86 @@ fn status_items(app: &AppHandle, binary_ok: bool) -> tauri::Result<Vec<MenuItem<
     ])
 }
 
+fn group_items(
+    app: &AppHandle,
+    groups: &[Group],
+    profiles: &[ProfileStatus],
+    enabled: bool,
+) -> tauri::Result<Vec<Submenu<Wry>>> {
+    groups
+        .iter()
+        .map(|group| group_menu(app, group, profiles, enabled))
+        .collect()
+}
+
+fn group_menu(
+    app: &AppHandle,
+    group: &Group,
+    profiles: &[ProfileStatus],
+    enabled: bool,
+) -> tauri::Result<Submenu<Wry>> {
+    // Emoji ride in the label (native color text on every platform); lucide symbols become
+    // menu images. The label is what the screen reader and Windows see.
+    let label = match &group.icon {
+        Some(GroupIcon::Emoji(emoji)) if !emoji.is_empty() => format!("{emoji} {}", group.name),
+        _ => group.name.clone(),
+    };
+    let submenu = Submenu::with_id_and_icon(
+        app,
+        format!("{}:{}", id::GROUP_PREFIX, group.id),
+        label,
+        true,
+        group_image(group),
+    )?;
+
+    let members: Vec<&ProfileStatus> = profiles
+        .iter()
+        .filter(|status| group.profile_ids.iter().any(|id| id == &status.profile.id))
+        .collect();
+
+    if members.is_empty() {
+        submenu.append(&item(
+            app,
+            format!("{}:{}:empty", id::GROUP_PREFIX, group.id),
+            LABEL_GROUP_EMPTY,
+            false,
+        )?)?;
+    } else {
+        let marked = profiles.iter().any(|p| p.running_pid.is_some());
+        for member in members.iter().take(MAX_ROWS) {
+            let row_id = format!("{}{}", id::LAUNCH_PREFIX, member.profile.id);
+            submenu.append(&item(app, row_id, row_label(member, marked), enabled)?)?;
+        }
+        if members.len() > MAX_ROWS {
+            submenu.append(&item(
+                app,
+                format!("{}:{}:more", id::GROUP_PREFIX, group.id),
+                LABEL_MORE,
+                true,
+            )?)?;
+        }
+    }
+    Ok(submenu)
+}
+
+fn ungrouped_items(
+    app: &AppHandle,
+    groups: &[Group],
+    profiles: &[ProfileStatus],
+    enabled: bool,
+) -> tauri::Result<Vec<MenuItem<Wry>>> {
+    let grouped: HashSet<&str> = groups
+        .iter()
+        .flat_map(|group| group.profile_ids.iter().map(String::as_str))
+        .collect();
+    let ungrouped: Vec<ProfileStatus> = profiles
+        .iter()
+        .filter(|status| !grouped.contains(status.profile.id.as_str()))
+        .cloned()
+        .collect();
+    profile_items(app, &ungrouped, enabled)
+}
+
 fn profile_items(
     app: &AppHandle,
     profiles: &[ProfileStatus],
@@ -210,6 +309,31 @@ fn profile_items(
         items.push(item(app, id::MORE, LABEL_MORE, true)?);
     }
     Ok(items)
+}
+
+/// Rasterize a group's lucide icon for the menu. Mid gray so it reads on both menu themes;
+/// the tray has no way to tint it per appearance.
+fn group_image(group: &Group) -> Option<Image<'static>> {
+    let svg = match &group.icon {
+        Some(GroupIcon::Symbol(symbol)) => {
+            tray_icons::svg(symbol).unwrap_or(tray_icons::DEFAULT_SVG)
+        }
+        _ => return None,
+    };
+    let rgba = rasterize(svg)?;
+    Some(Image::new_owned(rgba, MENU_ICON_SIZE, MENU_ICON_SIZE))
+}
+
+fn rasterize(svg: &str) -> Option<Vec<u8>> {
+    let tree = usvg::Tree::from_data(svg.as_bytes(), &usvg::Options::default()).ok()?;
+    let scale = MENU_ICON_SIZE as f32 / 24.0;
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(MENU_ICON_SIZE, MENU_ICON_SIZE)?;
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    Some(pixmap.data().to_vec())
 }
 
 fn row_label(p: &ProfileStatus, marked: bool) -> String {

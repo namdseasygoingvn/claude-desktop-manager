@@ -5,14 +5,17 @@ import {
   installUpdate,
   launchProfile,
   listAdoptable,
+  listGroups,
   listProfiles,
   locateFolder,
   onTrayEvent,
   onWindowShown,
   openConfig,
   revealProfile,
+  setGroupIcon,
   type AdoptCandidate,
   type CdmError,
+  type Group,
   type Profile,
   type ProfileStatus,
 } from "./api";
@@ -28,11 +31,20 @@ import {
   reportError,
   showBinaryNotFound,
   showLaunchFailed,
+  showNotice,
 } from "./views/errors";
+import {
+  openAssignGroupSheet,
+  openDeleteGroupSheet,
+  openNewGroupSheet,
+  openRenameGroupSheet,
+} from "./views/groups";
+import { openIconPicker } from "./views/icon-picker";
 import { filterProfiles, renderSidebar, sortProfiles } from "./views/list";
-import { openMenu } from "./views/menu";
+import { openMenu, type MenuEntry } from "./views/menu";
 import { matches, platform, shortcuts } from "./views/platform";
 import { openRenameSheet } from "./views/rename";
+import { t } from "./views/strings";
 import { renderTabs, type TabId } from "./views/tabs";
 import { renderToolbar, rowMenu, type CommandActions } from "./views/toolbar";
 import { renderUpdates, type UpdateState } from "./views/updates";
@@ -44,9 +56,11 @@ const root = document.getElementById("app") as HTMLElement;
 const state = {
   tab: "profiles" as TabId,
   profiles: [] as ProfileStatus[],
+  groups: [] as Group[],
   candidates: [] as AdoptCandidate[],
   selectedId: null as string | null,
   filter: "",
+  collapsed: new Set<string>(),
   launching: new Set<string>(),
   missing: new Set<string>(),
   bannerDismissed: false,
@@ -79,6 +93,8 @@ async function refresh(): Promise<void> {
     render();
     return;
   }
+  // Groups are cosmetic: an unreadable groups file must not break the profile list.
+  state.groups = await listGroups().catch(() => []);
   const ids = new Set(state.profiles.map((status) => status.profile.id));
   for (const id of state.missing) if (!ids.has(id)) state.missing.delete(id);
   if (!state.selectedId || !ids.has(state.selectedId)) {
@@ -205,6 +221,8 @@ function manager(): HTMLElement[] {
     ),
     renderSidebar({
       profiles: state.profiles,
+      groups: state.groups,
+      collapsed: state.collapsed,
       selectedId: state.selectedId,
       missingIds: state.missing,
       filter: state.filter,
@@ -215,6 +233,12 @@ function manager(): HTMLElement[] {
         render();
       },
       onContextMenu: (id, x, y) => openMenu(rowMenu(id, actions), { x, y }),
+      onToggleGroup: (id) => {
+        if (state.collapsed.has(id)) state.collapsed.delete(id);
+        else state.collapsed.add(id);
+        render();
+      },
+      onGroupMenu: (id, x, y) => openMenu(groupMenu(id), { x, y }),
     }),
     renderDetail({
       status,
@@ -362,10 +386,57 @@ function adopt(): void {
   });
 }
 
+function newGroup(): void {
+  openNewGroupSheet({ onCreated: () => void refresh() });
+}
+
+function assignToGroup(): void {
+  const status = selected();
+  if (!status) return;
+  const current = state.groups.find((group) => group.profileIds.includes(status.profile.id));
+  openAssignGroupSheet({
+    profileId: status.profile.id,
+    groups: state.groups,
+    currentGroupId: current?.id ?? null,
+    onAssigned: () => void refresh(),
+  });
+}
+
+function groupMenu(id: string): MenuEntry[] {
+  const group = state.groups.find((entry) => entry.id === id);
+  if (!group) return [];
+  return [
+    { label: t.groups.rename, onSelect: () => openRenameGroupSheet({ group, onRenamed: () => void refresh() }) },
+    { label: t.groups.chooseIcon, onSelect: () => chooseGroupIcon(group.id) },
+    "separator",
+    {
+      label: t.groups.delete,
+      destructive: true,
+      onSelect: () =>
+        openDeleteGroupSheet({ group, onDeleted: () => void refresh() }),
+    },
+  ];
+}
+
+function chooseGroupIcon(id: string): void {
+  const group = state.groups.find((entry) => entry.id === id);
+  if (!group) return;
+  openIconPicker({
+    current: group.icon,
+    onSelect: (icon) => {
+      void setGroupIcon(id, icon)
+        .then(refresh)
+        .catch((error: CdmError) => showNotice(t.groups.iconFailed, error.message));
+    },
+  });
+}
+
 const actions: CommandActions = {
   newProfile,
+  newGroup,
   launch,
   rename,
+  assignToGroup,
   editConfig,
   reveal,
   remove,

@@ -101,6 +101,41 @@ export const t = {
     rowLabel: (name: string, running: boolean) => (running ? `${name}, running` : name),
   },
 
+  groups: {
+    ungrouped: "Ungrouped",
+    newGroup: "New Group…",
+    createTitle: "New Group",
+    createNameLabel: "Name",
+    createPlaceholder: "Work",
+    createSubmit: "Create",
+    createFailed: (name: string) => `Couldn't create the group ${q(name)}.`,
+    assignToGroup: "Assign to Group…",
+    assignTitle: "Assign to Group",
+    assignNone: "No group",
+    assignSubmit: "Assign",
+    assignFailed: "Couldn't change the group.",
+    rename: "Rename Group…",
+    renameTitle: "Rename Group",
+    renameSubmit: "Rename",
+    renameFailed: (name: string) => `Couldn't rename the group ${q(name)}.`,
+    chooseIcon: "Choose Icon…",
+    delete: "Delete Group…",
+    deleteMessage: (name: string) => `Delete the group ${q(name)}?`,
+    deleteInformative:
+      "The profiles in it stay in your profile list — only the group goes away.",
+    deleteConfirm: "Delete",
+    deleteFailed: (name: string) => `Couldn't delete the group ${q(name)}.`,
+    iconFailed: "Couldn't save the icon.",
+    empty: "No profiles in this group",
+    picker: {
+      title: "Choose Icon",
+      emoji: "Emoji",
+      icons: "Icons",
+      search: "Search icons",
+      remove: "Remove Icon",
+    },
+  },
+
   detail: {
     neverLaunched: "Never launched · not signed in yet",
     neverLaunchedHint:

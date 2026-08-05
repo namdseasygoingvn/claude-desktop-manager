@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "gen:tray-icons": "node scripts/gen-tray-icons.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

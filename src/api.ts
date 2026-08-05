@@ -26,6 +26,19 @@ export interface AdoptCandidate {
   suggestedName: string;
 }
 
+/** A group's icon: one key only, mirroring the wire shape (`{"emoji":"🏢"}` / `{"symbol":"Folder"}`). */
+export interface GroupIcon {
+  emoji?: string;
+  symbol?: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  profileIds: string[];
+  icon: GroupIcon | null;
+}
+
 /** The check only looks; installing is a separate, explicit step. */
 export type UpdateOutcome =
   | { status: "upToDate"; version: string }
@@ -37,6 +50,7 @@ export type DoctorReport = Record<string, unknown>;
 export const ERROR_KINDS = [
   "BinaryNotFound",
   "ProfileNotFound",
+  "GroupNotFound",
   "ProfileRunning",
   "NameEmpty",
   "DirExists",
@@ -130,6 +144,15 @@ export const quitProfile = (id: string) => call<void>("quit_profile", { id });
 export const listAdoptable = () => call<AdoptCandidate[]>("list_adoptable");
 export const adoptFolder = (dirName: string, displayName: string) =>
   call<Profile>("adopt_folder", { dirName, displayName });
+export const listGroups = () => call<Group[]>("list_groups");
+export const createGroup = (name: string) => call<Group>("create_group", { name });
+export const renameGroup = (id: string, newName: string) =>
+  call<Group>("rename_group", { id, newName });
+export const setGroupIcon = (id: string, icon: GroupIcon | null) =>
+  call<Group>("set_group_icon", { id, icon });
+export const deleteGroup = (id: string) => call<void>("delete_group", { id });
+export const setProfileGroup = (profileId: string, groupId: string | null) =>
+  call<void>("set_profile_group", { profileId, groupId });
 export const openConfig = (id: string) => call<void>("open_config", { id });
 export const doctor = () => call<DoctorReport>("doctor");
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");

@@ -5,6 +5,7 @@ use tauri::AppHandle;
 use super::logbuf;
 use super::rpc::Tool;
 use crate::commands::{self, CmdResult, CommandError};
+use crate::core::groups;
 use crate::core::registry;
 use crate::platform;
 use crate::tray;
@@ -31,7 +32,121 @@ pub fn build(app: &AppHandle, port: u16) -> Vec<Tool> {
         open_config(),
         show_preferences(app),
         rebuild_tray(app),
+        list_groups(),
+        create_group(app),
+        rename_group(app),
+        set_group_icon(app),
+        delete_group(app),
+        set_profile_group(app),
     ]
+}
+
+fn list_groups() -> Tool {
+    tool(
+        "list_groups",
+        "Every user-defined group with its icon and member profile ids.",
+        no_args(),
+        |_| out(commands::list_groups()),
+    )
+}
+
+fn create_group(app: &AppHandle) -> Tool {
+    let app = app.clone();
+    tool(
+        "create_group",
+        "Create an empty group.",
+        object(json!({"name": string_prop("Display name for the new group.")}), &["name"]),
+        move |args| out(commands::create_group(app.clone(), require_str(args, "name")?)),
+    )
+}
+
+fn rename_group(app: &AppHandle) -> Tool {
+    let app = app.clone();
+    tool(
+        "rename_group",
+        "Rename a group. Members and icon are untouched.",
+        object(
+            json!({
+                "group": string_prop("Group id or name."),
+                "name": string_prop("New display name."),
+            }),
+            &["group", "name"],
+        ),
+        move |args| {
+            let id = resolve_group(args)?;
+            out(commands::rename_group(app.clone(), id, require_str(args, "name")?))
+        },
+    )
+}
+
+fn set_group_icon(app: &AppHandle) -> Tool {
+    let app = app.clone();
+    tool(
+        "set_group_icon",
+        "Set a group's icon: {\"emoji\":\"🏢\"}, {\"symbol\":\"Folder\"} (a lucide icon name), or null to clear it.",
+        object(
+            json!({
+                "group": string_prop("Group id or name."),
+                "icon": json!({
+                    "type": ["object", "null"],
+                    "properties": {
+                        "emoji": string_prop("An emoji character."),
+                        "symbol": string_prop("A lucide icon name, e.g. \"Folder\"."),
+                    },
+                }),
+            }),
+            &["group", "icon"],
+        ),
+        move |args| {
+            let id = resolve_group(args)?;
+            let icon = match args.get("icon") {
+                Some(Value::Null) | None => None,
+                Some(value) => Some(
+                    serde_json::from_value(value.clone())
+                        .map_err(|e| format!("icon: {e}"))?,
+                ),
+            };
+            out(commands::set_group_icon(app.clone(), id, icon))
+        },
+    )
+}
+
+fn delete_group(app: &AppHandle) -> Tool {
+    let app = app.clone();
+    tool(
+        "delete_group",
+        "Delete a group. Its profiles stay in the list, ungrouped.",
+        object(json!({"group": string_prop("Group id or name.")}), &["group"]),
+        move |args| {
+            let id = resolve_group(args)?;
+            commands::delete_group(app.clone(), id.clone()).map_err(detail)?;
+            Ok(json!({"deleted": id}))
+        },
+    )
+}
+
+fn set_profile_group(app: &AppHandle) -> Tool {
+    let app = app.clone();
+    tool(
+        "set_profile_group",
+        "Move a profile into one group, removing it from every other. Pass group: null to ungroup it.",
+        object(
+            json!({
+                "profile": string_prop("Profile id or name."),
+                "group": json!({"type": ["string", "null"], "description": "Group id or name, or null to ungroup."}),
+            }),
+            &["profile", "group"],
+        ),
+        move |args| {
+            let profile = resolve_id(args)?;
+            let group = match args.get("group") {
+                Some(Value::Null) | None => None,
+                Some(_) => Some(find_group(&require_str(args, "group")?)?.id),
+            };
+            commands::set_profile_group(app.clone(), profile, group).map_err(detail)?;
+            Ok(json!({"assigned": true}))
+        },
+    )
 }
 
 fn info(app: &AppHandle, port: u16) -> Tool {
@@ -359,6 +474,25 @@ fn require_str(args: &Value, key: &str) -> Result<String, String> {
 /// Tools take a profile id *or* name, because a human debugging by hand knows the name.
 fn resolve_id(args: &Value) -> Result<String, String> {
     Ok(find(&require_str(args, "profile")?)?.profile.id)
+}
+
+/// Groups resolve by id or name, like profiles do.
+fn resolve_group(args: &Value) -> Result<String, String> {
+    Ok(find_group(&require_str(args, "group")?)?.id)
+}
+
+fn find_group(reference: &str) -> Result<groups::Group, String> {
+    let groups = commands::list_groups().map_err(detail)?;
+    groups
+        .iter()
+        .find(|group| group.id == reference)
+        .or_else(|| {
+            groups
+                .iter()
+                .find(|group| group.name.eq_ignore_ascii_case(reference))
+        })
+        .cloned()
+        .ok_or_else(|| format!("no group with id or name {reference}"))
 }
 
 fn find(reference: &str) -> Result<crate::core::types::ProfileStatus, String> {

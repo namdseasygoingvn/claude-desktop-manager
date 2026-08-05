@@ -48,6 +48,8 @@ pub enum CdmError {
     BinaryNotFound,
     #[error("no profile with id {0}")]
     ProfileNotFound(String),
+    #[error("no group with id {0}")]
+    GroupNotFound(String),
     #[error("profile {0} is running")]
     ProfileRunning(String),
     #[error("a profile name cannot be empty")]

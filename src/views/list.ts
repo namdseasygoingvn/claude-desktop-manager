@@ -1,10 +1,14 @@
-import type { ProfileStatus } from "../api";
+import type { Group, ProfileStatus } from "../api";
+import { groupIcon } from "./icons";
+import { renderGroupHeader } from "./groups";
 import { lastUsedShort, t } from "./strings";
 
 export const FILTER_THRESHOLD = 10;
 
 export interface ListProps {
   profiles: ProfileStatus[];
+  groups: Group[];
+  collapsed: Set<string>;
   selectedId: string | null;
   missingIds: Set<string>;
   filter: string;
@@ -12,6 +16,8 @@ export interface ListProps {
   onActivate: (id: string) => void;
   onFilter: (value: string) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
+  onToggleGroup: (id: string) => void;
+  onGroupMenu: (id: string, x: number, y: number) => void;
 }
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base" });
@@ -63,9 +69,37 @@ function renderList(props: ListProps): HTMLElement {
   list.setAttribute("aria-labelledby", "profiles-header");
 
   const visible = filterProfiles(sortProfiles(props.profiles), props.filter);
+  const filtering = props.filter.trim().length > 0;
 
-  for (const status of visible) {
-    list.append(renderRow(status, props));
+  for (const group of props.groups) {
+    const members = visible.filter((status) => group.profileIds.includes(status.profile.id));
+    // A filter that matches nothing in the group hides its header instead of showing an empty one.
+    if (filtering && members.length === 0) continue;
+
+    const collapsed = props.collapsed.has(group.id);
+    list.append(
+      renderGroupHeader({
+        group,
+        members: members.length,
+        collapsed,
+        onToggle: () => props.onToggleGroup(group.id),
+        onMenu: (x, y) => props.onGroupMenu(group.id, x, y),
+      }),
+    );
+    if (!collapsed) {
+      list.append(rows(members, props));
+    }
+  }
+
+  if (props.groups.length === 0) {
+    for (const status of visible) list.append(renderRow(status, props));
+  } else {
+    const grouped = new Set(props.groups.flatMap((group) => group.profileIds));
+    const ungrouped = visible.filter((status) => !grouped.has(status.profile.id));
+    if (!(filtering && ungrouped.length === 0)) {
+      list.append(renderUngroupedHeader(ungrouped.length));
+      list.append(rows(ungrouped, props));
+    }
   }
 
   list.addEventListener("keydown", (event) => {
@@ -86,6 +120,29 @@ function renderList(props: ListProps): HTMLElement {
   });
 
   return list;
+}
+
+function rows(members: ProfileStatus[], props: ListProps): HTMLElement {
+  const group = document.createElement("div");
+  group.className = "group-rows";
+  for (const status of members) group.append(renderRow(status, props));
+  return group;
+}
+
+function renderUngroupedHeader(count: number): HTMLElement {
+  const header = document.createElement("div");
+  header.className = "group-header is-ungrouped";
+
+  const name = document.createElement("span");
+  name.className = "group-name";
+  name.textContent = t.groups.ungrouped;
+
+  const countNode = document.createElement("span");
+  countNode.className = "group-count";
+  countNode.textContent = String(count);
+
+  header.append(groupIcon(null), name, countNode);
+  return header;
 }
 
 function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {

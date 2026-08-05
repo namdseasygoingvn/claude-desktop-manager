@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::AppHandle;
 
+use crate::core::groups;
 use crate::core::profile;
 use crate::core::registry;
 use crate::core::types::{AdoptCandidate, CdmError, Profile, ProfileStatus};
@@ -27,6 +28,7 @@ impl From<CdmError> for CommandError {
             CdmError::BinaryNotFound => ("binaryNotFound", None),
             CdmError::NameEmpty => ("nameEmpty", None),
             CdmError::ProfileNotFound(d) => ("profileNotFound", Some(d)),
+            CdmError::GroupNotFound(d) => ("groupNotFound", Some(d)),
             CdmError::ProfileRunning(d) => ("profileRunning", Some(d)),
             CdmError::DirExists(d) => ("dirExists", Some(d)),
             CdmError::RegistryCorrupt(d) => ("registryCorrupt", Some(d)),
@@ -89,6 +91,54 @@ pub fn quit_profile(app: AppHandle, id: String) -> CmdResult<()> {
 #[tauri::command]
 pub fn list_adoptable() -> CmdResult<Vec<AdoptCandidate>> {
     Ok(profile::adoptable()?)
+}
+
+#[tauri::command]
+pub fn list_groups() -> CmdResult<Vec<groups::Group>> {
+    Ok(groups::list()?)
+}
+
+#[tauri::command]
+pub fn create_group(app: AppHandle, name: String) -> CmdResult<groups::Group> {
+    let group = groups::create(&name)?;
+    let _ = tray::rebuild(&app);
+    Ok(group)
+}
+
+#[tauri::command]
+pub fn rename_group(app: AppHandle, id: String, new_name: String) -> CmdResult<groups::Group> {
+    let group = groups::rename(&id, &new_name)?;
+    let _ = tray::rebuild(&app);
+    Ok(group)
+}
+
+#[tauri::command]
+pub fn set_group_icon(
+    app: AppHandle,
+    id: String,
+    icon: Option<groups::GroupIcon>,
+) -> CmdResult<groups::Group> {
+    let group = groups::set_icon(&id, icon)?;
+    let _ = tray::rebuild(&app);
+    Ok(group)
+}
+
+#[tauri::command]
+pub fn delete_group(app: AppHandle, id: String) -> CmdResult<()> {
+    groups::delete(&id)?;
+    let _ = tray::rebuild(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_profile_group(
+    app: AppHandle,
+    profile_id: String,
+    group_id: Option<String>,
+) -> CmdResult<()> {
+    groups::assign(&profile_id, group_id.as_deref())?;
+    let _ = tray::rebuild(&app);
+    Ok(())
 }
 
 #[tauri::command]

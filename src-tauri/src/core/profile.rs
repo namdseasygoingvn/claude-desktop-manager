@@ -309,7 +309,7 @@ fn single_component(dir_name: &str) -> Result<&str> {
     }
 }
 
-fn non_empty(name: &str) -> Result<&str> {
+pub(crate) fn non_empty(name: &str) -> Result<&str> {
     let name = name.trim();
     if name.is_empty() {
         Err(CdmError::NameEmpty)
@@ -327,14 +327,15 @@ fn index_of(reg: &Registry, id: &str) -> Result<usize> {
 
 pub(crate) fn mint_id(reg: &Registry) -> String {
     loop {
-        let id = random_id();
+        let id = format!("p_{}", random_id());
         if !reg.profiles.iter().any(|p| p.id == id) {
             return id;
         }
     }
 }
 
-fn random_id() -> String {
+/// Random hex, unique per process invocation sequence; callers add their own prefix.
+pub(crate) fn random_id() -> String {
     static SEQ: AtomicU64 = AtomicU64::new(0);
     let mut hasher = RandomState::new().build_hasher();
     SystemTime::now()
@@ -343,7 +344,7 @@ fn random_id() -> String {
         .unwrap_or(0)
         .hash(&mut hasher);
     SEQ.fetch_add(1, Ordering::Relaxed).hash(&mut hasher);
-    format!("p_{:06x}", hasher.finish() & 0xff_ffff)
+    format!("{:06x}", hasher.finish() & 0xff_ffff)
 }
 
 pub(crate) fn now_rfc3339() -> String {

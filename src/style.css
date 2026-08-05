@@ -300,6 +300,89 @@ button {
   background: var(--selected);
 }
 
+/* Group headers in the sidebar */
+
+.group-header {
+  display: grid;
+  grid-template-columns: 12px 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 30px;
+  margin-top: 8px;
+  padding: 3px 6px;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: default;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.group-header:first-child {
+  margin-top: 0;
+}
+
+.group-header:hover {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.group-header .group-chevron {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.12s;
+}
+
+.group-header .group-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.group-glyph {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.group-glyph-emoji {
+  font-size: 13px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.group-glyph-default {
+  color: var(--text-dim);
+}
+
+.group-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-count {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.group-rows {
+  margin-left: 14px;
+}
+
+.group-header.is-ungrouped {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  margin-top: 8px;
+  font-weight: 400;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group-header .group-chevron {
+    transition: none;
+  }
+}
+
 .profile-row.is-missing .row-name,
 .profile-row.is-missing .row-secondary {
   opacity: 0.6;
@@ -589,6 +672,106 @@ button {
 
 .warning {
   color: var(--text);
+}
+
+/* Icon picker — Notion-style chooser in a sheet */
+
+.icon-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.picker-mode {
+  display: flex;
+  gap: 4px;
+}
+
+.picker-mode-button {
+  min-height: 26px;
+  padding: 0 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: default;
+  color: var(--text-dim);
+}
+
+.picker-mode-button.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.picker-search {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 34px);
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.picker-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: default;
+  font-size: 20px;
+}
+
+.picker-cell:hover {
+  background: var(--selected);
+}
+
+.picker-cell.is-selected {
+  background: var(--accent);
+}
+
+.picker-cell-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Assign-to-group sheet */
+
+.assign-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.assign-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  cursor: default;
+}
+
+.assign-row:hover {
+  background: var(--selected);
+}
+
+.assign-row .group-glyph-emoji {
+  font-size: 14px;
 }
 
 .adopt-row {
