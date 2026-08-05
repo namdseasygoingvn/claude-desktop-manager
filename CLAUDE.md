@@ -1,7 +1,5 @@
 # Claude Desktop Manager
 
-`SPEC.md` is the design authority. Read it before changing anything structural.
-
 ## KISS — no god scripts, no god functions
 
 One file, one responsibility. If describing a file needs the word "and", it is two files.
