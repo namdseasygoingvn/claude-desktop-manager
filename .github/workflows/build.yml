@@ -1,0 +1,119 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-main
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: universal-apple-darwin
+            bundles: dmg
+            artifact: macos-dmg
+            glob: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            artifact: windows-setup
+            glob: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # universal-apple-darwin is a lipo of two real targets, so both must be installed.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test
+
+      # `tauri build` runs beforeBuildCommand, which is `tsc --noEmit && vite build`,
+      # so the frontend typecheck happens here rather than as its own step.
+      - name: Build
+        run: npm run tauri build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.glob }}
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Build release notes
+        run: |
+          {
+            echo "Create, name, and launch isolated Claude Desktop profiles."
+            echo
+            echo "Built from \`${GITHUB_SHA:0:7}\` — $(git log -1 --pretty=%s)"
+            echo
+            echo "## Install"
+            echo "**macOS (universal):** download the \`.dmg\`, open it, drag the app to Applications."
+            echo "First open: macOS blocks it (unsigned) — right-click the app → **Open → Open**."
+            echo
+            echo "**Windows (x64):** download the \`-setup.exe\` and run it."
+            echo "First run: SmartScreen shows \"Windows protected your PC\" (unsigned) — **More info → Run anyway**."
+            echo
+            echo "The app lives in the **menu bar / system tray**, not the Dock or taskbar."
+          } > NOTES.md
+
+      # action-gh-release will not move an existing tag, so the rolling release is
+      # torn down first rather than left pointing at an older commit.
+      - name: Clear previous rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+
+      - name: Publish rolling release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest
+          name: Latest build
+          body_path: NOTES.md
+          files: artifacts/*
+          prerelease: true
+
+      - name: Delete transient build artifacts
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api /repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
+            --jq '.artifacts[].id' \
+          | xargs -r -I{} gh api -X DELETE /repos/${{ github.repository }}/actions/artifacts/{}
