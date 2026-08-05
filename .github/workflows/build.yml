@@ -12,6 +12,20 @@ concurrency:
   group: build-main
   cancel-in-progress: false
 
+env:
+  RELEASE_BODY: |
+    Create, name, and launch isolated Claude Desktop profiles.
+
+    **macOS:** download the `.dmg` for your chip — `aarch64` for Apple Silicon, `x64` for Intel.
+    Open it, drag the app to Applications.
+    First open: macOS blocks it (unsigned) — right-click the app → **Open → Open**.
+
+    **Windows (x64):** download the `-setup.exe` and run it.
+    First run: SmartScreen shows "Windows protected your PC" (unsigned) — **More info → Run anyway**.
+
+    The app lives in the **menu bar / system tray**, not the Dock or taskbar.
+    Installed copies update themselves silently; the tray also has *Check for Updates…*.
+
 jobs:
   # The updater compares versions, so every build has to carry a higher one than
   # the last. The bump is committed back to main with [skip ci] so it cannot
@@ -47,6 +61,8 @@ jobs:
           git commit -am "Release v${{ steps.bump.outputs.version }} [skip ci]"
           git push
 
+  # One job per target. The two macOS arches used to be one universal build, which
+  # compiled the whole app twice in series; as separate jobs they overlap instead.
   build:
     needs: bump
     strategy:
@@ -54,7 +70,10 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            target: universal-apple-darwin
+            target: aarch64-apple-darwin
+            test: true
+          - os: macos-latest
+            target: x86_64-apple-darwin
           - os: windows-latest
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
@@ -68,23 +87,29 @@ jobs:
           node-version: 22
           cache: npm
 
-      # universal-apple-darwin is a lipo of two real targets, so both must be installed.
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+          targets: ${{ matrix.target }}
 
+      # Both macOS jobs report the same OS and arch, so without the target in the
+      # key they would overwrite each other with the wrong target's artifacts.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          key: ${{ matrix.target }}
 
       - run: npm ci
 
+      # Tests are host-arch and platform-agnostic, so one job covers them. --locked
+      # fails the build if Cargo.lock has drifted from Cargo.toml.
       - name: Test
+        if: matrix.test
         working-directory: src-tauri
-        run: cargo test
+        run: cargo test --locked
 
       # tauri-action builds, signs the update artifacts, publishes the release, and
-      # generates the latest.json the updater reads.
+      # generates the latest.json the updater reads. Parallel jobs merge into one
+      # release and one latest.json rather than clobbering each other.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -93,17 +118,7 @@ jobs:
         with:
           tagName: v${{ needs.bump.outputs.version }}
           releaseName: v${{ needs.bump.outputs.version }}
-          releaseBody: |
-            Create, name, and launch isolated Claude Desktop profiles.
-
-            **macOS (universal):** download the `.dmg`, open it, drag the app to Applications.
-            First open: macOS blocks it (unsigned) — right-click the app → **Open → Open**.
-
-            **Windows (x64):** download the `-setup.exe` and run it.
-            First run: SmartScreen shows "Windows protected your PC" (unsigned) — **More info → Run anyway**.
-
-            The app lives in the **menu bar / system tray**, not the Dock or taskbar.
-            Installed copies update themselves silently; the tray also has *Check for Updates…*.
+          releaseBody: ${{ env.RELEASE_BODY }}
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}

@@ -291,9 +291,11 @@ Changing certificates or switching CA resets accrued reputation.
 Targets `app` and `dmg`. The `.dmg` is the download; the `.app` inside it is what gets signed
 and notarized.
 
-- **Universal binary.** Build `--target universal-apple-darwin` so one download covers Apple
-  Silicon and Intel. Note the manifest then needs `darwin-aarch64` *and* `darwin-x86_64` entries
-  pointing at the same universal artifact.
+- **One `.dmg` per arch**, not a universal binary. `universal-apple-darwin` is a lipo of two
+  real targets, so a universal build compiles the whole app twice inside a single job; as two
+  jobs the same work overlaps and the manifest gets a distinct artifact per arch instead of
+  `darwin-aarch64` and `darwin-x86_64` both pointing at one fat download. The cost is that
+  users pick their chip on the download page.
 - **Developer ID Application** certificate — the only identity that works for direct download.
   (`Apple Development` is for local runs; `3rd Party Mac Developer` is the App Store path that is
   closed to us.)
@@ -314,15 +316,16 @@ and notarized.
 
 ### CI and versioning
 
-One GitHub Actions workflow, triggered by a tag push, matrixed over both platforms, using
-`tauri-apps/tauri-action` to build and bundle. macOS runs on `macos-latest` (Apple Silicon
-runner, building universal); Windows on `windows-latest`.
+One GitHub Actions workflow, triggered by a tag push, matrixed one job per target, using
+`tauri-apps/tauri-action` to build and bundle. Both macOS arches run on `macos-latest` (Apple
+Silicon runner, cross-compiling for Intel); Windows on `windows-latest`. The build cache is
+keyed by target, since the two macOS jobs are otherwise indistinguishable to it.
 
 Shape:
 
 1. Tag push `v*` on the private repo triggers the workflow.
-2. Matrix builds macOS universal `.dmg` and Windows NSIS `-setup.exe`, each with its `.sig`
-   updater artifact (`createUpdaterArtifacts: true`).
+2. Matrix builds an Apple Silicon `.dmg`, an Intel `.dmg`, and a Windows NSIS `-setup.exe`,
+   each with its `.sig` updater artifact (`createUpdaterArtifacts: true`).
 3. Signing and notarization happen inside the build step, from secrets.
 4. Artifacts upload to a **draft** release in the **public** releases repo.
 5. A final job assembles `latest.json` from the `.sig` files, uploads it to the same release,
