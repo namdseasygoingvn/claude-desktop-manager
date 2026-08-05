@@ -3,7 +3,7 @@ import { t } from "./strings";
 export type UpdateState =
   | { phase: "idle" }
   | { phase: "checking" }
-  | { phase: "upToDate" }
+  | { phase: "upToDate"; version: string }
   | { phase: "installed"; version: string }
   | { phase: "failed"; detail: string };
 
@@ -36,30 +36,25 @@ export function renderUpdates(options: UpdatesOptions): HTMLElement {
   pane.append(heading, version, check);
   for (const line of outcome(options.state)) pane.append(line);
 
-  const auto = document.createElement("p");
-  auto.className = "helper";
-  auto.textContent = t.updates.auto;
-  pane.append(auto);
-
   return pane;
 }
 
 function outcome(state: UpdateState): HTMLElement[] {
   switch (state.phase) {
     case "upToDate":
-      return [status(t.updates.upToDate)];
+      return [status(t.updates.upToDate(state.version), "is-ok")];
     case "installed":
       return [status(t.updates.installed(state.version)), helper(t.updates.installedHint)];
     case "failed":
-      return [status(t.updates.failed, true), helper(state.detail)];
+      return [status(t.updates.failed, "is-failed"), helper(state.detail)];
     default:
       return [];
   }
 }
 
-function status(text: string, failed = false): HTMLElement {
+function status(text: string, tone?: "is-ok" | "is-failed"): HTMLElement {
   const line = document.createElement("p");
-  line.className = failed ? "settings-status is-failed" : "settings-status";
+  line.className = tone ? `settings-status ${tone}` : "settings-status";
   line.setAttribute("role", "status");
   line.textContent = text;
   return line;

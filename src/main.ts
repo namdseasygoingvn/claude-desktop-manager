@@ -158,7 +158,7 @@ function runUpdateCheck(): void {
       state.update =
         outcome.status === "installed"
           ? { phase: "installed", version: outcome.version }
-          : { phase: "upToDate" };
+          : { phase: "upToDate", version: outcome.version };
     })
     .catch((error: CdmError) => {
       state.update = { phase: "failed", detail: error.message };

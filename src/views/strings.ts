@@ -64,13 +64,12 @@ export const t = {
     version: (version: string) => `Version ${version}`,
     check: "Check for Updates",
     checking: "Checking…",
-    upToDate: "cdm is up to date.",
+    upToDate: (version: string) => `You're up to date! Version is ${version}`,
     installed: (version: string) =>
       `Version ${version} is installed. It starts running the next time you open cdm.`,
     // The running process keeps the old code on purpose: restarting would kill the profiles it spawned.
     installedHint: "Your running profiles are untouched.",
     failed: "Couldn't check for updates.",
-    auto: "cdm checks for updates on its own every few hours.",
   },
 
   empty: {
