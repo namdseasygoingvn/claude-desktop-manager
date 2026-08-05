@@ -1,10 +1,10 @@
 import type { ProfileStatus } from "../api";
+import { FolderOpen, icon } from "./icons";
 import { t } from "./strings";
 
 export interface DetailActions {
   launch: () => void;
   rename: () => void;
-  editConfig: () => void;
   reveal: () => void;
   remove: () => void;
   locate: () => void;
@@ -51,6 +51,9 @@ export function renderDetail(props: DetailProps): HTMLElement {
     pane.append(hint);
   }
 
+  const launchRow = document.createElement("div");
+  launchRow.className = "detail-launch";
+
   const launch = document.createElement("button");
   launch.type = "button";
   launch.className = "button primary large";
@@ -59,13 +62,19 @@ export function renderDetail(props: DetailProps): HTMLElement {
   launch.dataset.focusKey = "primary";
   launch.addEventListener("click", props.actions.launch);
 
+  const reveal = document.createElement("button");
+  reveal.type = "button";
+  reveal.className = "button detail-reveal";
+  reveal.title = t.detail.reveal;
+  reveal.setAttribute("aria-label", t.detail.reveal);
+  reveal.append(icon(FolderOpen));
+  reveal.addEventListener("click", props.actions.reveal);
+
+  launchRow.append(launch, reveal);
+
   const row = document.createElement("div");
   row.className = "detail-actions";
-  row.append(
-    action(t.detail.rename, "rename", props.actions.rename),
-    action(t.detail.editConfig, "config", props.actions.editConfig),
-    action(t.detail.reveal, "reveal", props.actions.reveal),
-  );
+  row.append(action(t.detail.rename, "rename", props.actions.rename));
 
   const rule = document.createElement("hr");
 

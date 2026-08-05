@@ -1,5 +1,5 @@
 import type { Group, ProfileStatus } from "../api";
-import { groupIcon } from "./icons";
+import { groupIcon, icon, Pencil } from "./icons";
 import { renderGroupHeader } from "./groups";
 import { lastUsedShort, t } from "./strings";
 
@@ -16,6 +16,7 @@ export interface ListProps {
   onActivate: (id: string) => void;
   onFilter: (value: string) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
+  onRename: (id: string) => void;
   onToggleGroup: (id: string) => void;
   onGroupMenu: (id: string, x: number, y: number) => void;
 }
@@ -180,7 +181,21 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
         ? lastUsedShort(profile.lastUsedAt)
         : t.list.neverLaunched;
 
-  row.append(bullet, name, secondary);
+  const rename = document.createElement("button");
+  rename.type = "button";
+  rename.className = "row-rename";
+  rename.title = t.detail.rename;
+  rename.setAttribute("aria-label", t.detail.rename);
+  rename.append(icon(Pencil));
+  // Keep the click and Enter/Space on the button: the row's select handler and the list's
+  // Enter-activate keydown would otherwise double-fire on top of the rename.
+  rename.addEventListener("click", (event) => {
+    event.stopPropagation();
+    props.onRename(profile.id);
+  });
+  rename.addEventListener("keydown", (event) => event.stopPropagation());
+
+  row.append(bullet, name, secondary, rename);
   row.addEventListener("click", () => props.onSelect(profile.id));
   row.addEventListener("dblclick", () => props.onActivate(profile.id));
   row.addEventListener("contextmenu", (event) => {

@@ -269,7 +269,7 @@ button {
 
 .profile-row {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
   min-height: var(--row-height);
   padding: 4px 6px;
@@ -294,6 +294,28 @@ button {
   grid-column: 2;
   font-size: 11px;
   color: var(--text-dim);
+}
+
+.profile-row .row-rename {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.profile-row .row-rename:hover {
+  background: var(--selected);
+  color: var(--text);
 }
 
 .profile-row.is-selected {
@@ -384,7 +406,8 @@ button {
 }
 
 .profile-row.is-missing .row-name,
-.profile-row.is-missing .row-secondary {
+.profile-row.is-missing .row-secondary,
+.profile-row.is-missing .row-rename {
   opacity: 0.6;
 }
 
@@ -410,6 +433,30 @@ button {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.detail-launch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.detail-launch .button.large {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+}
+
+.detail-reveal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0;
 }
 
 .detail-created {

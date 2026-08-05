@@ -233,6 +233,10 @@ function manager(): HTMLElement[] {
         render();
       },
       onContextMenu: (id, x, y) => openMenu(rowMenu(id, actions), { x, y }),
+      onRename: (id) => {
+        select(id);
+        rename();
+      },
       onToggleGroup: (id) => {
         if (state.collapsed.has(id)) state.collapsed.delete(id);
         else state.collapsed.add(id);
@@ -249,7 +253,6 @@ function manager(): HTMLElement[] {
           if (status) launch(status.profile.id);
         },
         rename,
-        editConfig,
         reveal,
         remove,
         locate,
