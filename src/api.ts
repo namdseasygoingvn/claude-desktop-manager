@@ -16,9 +16,17 @@ export interface Profile {
   lastUsedAt: string | null;
 }
 
+/** The newest sample in the profile's own usage history. `sampledAt` is epoch milliseconds. */
+export interface Usage {
+  fiveHour: number | null;
+  sevenDay: number | null;
+  sampledAt: number;
+}
+
 export interface ProfileStatus {
   profile: Profile;
   runningPid: number | null;
+  usage: Usage | null;
 }
 
 export interface AdoptCandidate {
@@ -49,6 +57,7 @@ export interface GroupList {
 export interface GeneralSettings {
   openPreferencesAtStart: boolean;
   launchAtLogin: boolean;
+  showUsageLimits: boolean;
 }
 
 /** The check only looks; installing is a separate, explicit step. */
@@ -177,6 +186,8 @@ export const setOpenPreferencesAtStart = (enabled: boolean) =>
   call<void>("set_open_preferences_at_start", { enabled });
 export const setLaunchAtLogin = (enabled: boolean) =>
   call<void>("set_launch_at_login", { enabled });
+export const setShowUsageLimits = (enabled: boolean) =>
+  call<void>("set_show_usage_limits", { enabled });
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
 export const installUpdate = () => call<string>("install_update");
 export const revealProfile = (id: string) => call<void>("reveal_profile", { id });

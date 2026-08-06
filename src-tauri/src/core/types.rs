@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::usage::Usage;
+
 pub const REGISTRY_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -32,6 +34,7 @@ impl Default for Registry {
 pub struct ProfileStatus {
     pub profile: Profile,
     pub running_pid: Option<u32>,
+    pub usage: Option<Usage>,
 }
 
 #[derive(Clone, Debug, Serialize)]

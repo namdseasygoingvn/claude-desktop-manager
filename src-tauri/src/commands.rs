@@ -47,6 +47,7 @@ impl From<CdmError> for CommandError {
 #[serde(rename_all = "camelCase")]
 pub struct GeneralSettings {
     pub open_preferences_at_start: bool,
+    pub show_usage_limits: bool,
     pub launch_at_login: bool,
 }
 
@@ -190,8 +191,10 @@ pub fn reveal_profile(id: String) -> CmdResult<()> {
 
 #[tauri::command]
 pub fn get_general_settings(app: AppHandle) -> CmdResult<GeneralSettings> {
+    let stored = settings::load();
     Ok(GeneralSettings {
-        open_preferences_at_start: settings::load().open_preferences_at_start,
+        open_preferences_at_start: stored.open_preferences_at_start,
+        show_usage_limits: stored.show_usage_limits,
         // An unreadable login item reads as off: the checkbox then offers to set it.
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
     })
@@ -202,6 +205,15 @@ pub fn set_open_preferences_at_start(enabled: bool) -> CmdResult<()> {
     let mut current = settings::load();
     current.open_preferences_at_start = enabled;
     Ok(settings::save(&current)?)
+}
+
+#[tauri::command]
+pub fn set_show_usage_limits(app: AppHandle, enabled: bool) -> CmdResult<()> {
+    let mut current = settings::load();
+    current.show_usage_limits = enabled;
+    settings::save(&current)?;
+    let _ = tray::rebuild(&app);
+    Ok(())
 }
 
 #[tauri::command]

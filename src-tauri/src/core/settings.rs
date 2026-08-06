@@ -15,12 +15,14 @@ pub const SETTINGS_FILE: &str = "settings.json";
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub open_preferences_at_start: bool,
+    pub show_usage_limits: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             open_preferences_at_start: true,
+            show_usage_limits: true,
         }
     }
 }
@@ -65,8 +67,12 @@ mod tests {
     fn the_stored_key_is_camel_case() {
         let settings = Settings {
             open_preferences_at_start: false,
+            show_usage_limits: false,
         };
         let json = serde_json::to_string(&settings).unwrap();
-        assert_eq!(json, r#"{"openPreferencesAtStart":false}"#);
+        assert_eq!(
+            json,
+            r#"{"openPreferencesAtStart":false,"showUsageLimits":false}"#
+        );
     }
 }

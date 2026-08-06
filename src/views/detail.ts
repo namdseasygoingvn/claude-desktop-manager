@@ -1,6 +1,7 @@
 import type { ProfileStatus } from "../api";
 import { FolderOpen, icon, Pencil } from "./icons";
 import { t } from "./strings";
+import { usageBars } from "./usage";
 
 export interface DetailActions {
   launch: () => void;
@@ -15,6 +16,7 @@ export interface DetailProps {
   status: ProfileStatus | null;
   launching: boolean;
   missing: boolean;
+  showUsage: boolean;
   actions: DetailActions;
 }
 
@@ -48,6 +50,8 @@ export function renderDetail(props: DetailProps): HTMLElement {
     pane.append(orphanBody(props.actions));
     return pane;
   }
+
+  if (props.showUsage && props.status.usage) pane.append(usageBars(props.status.usage));
 
   if (!profile.lastUsedAt && !props.launching) {
     const hint = document.createElement("p");

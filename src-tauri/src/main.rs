@@ -68,6 +68,7 @@ fn run_manager() {
             commands::doctor,
             commands::get_general_settings,
             commands::set_open_preferences_at_start,
+            commands::set_show_usage_limits,
             commands::set_launch_at_login,
             commands::list_groups,
             commands::create_group,

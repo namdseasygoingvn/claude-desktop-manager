@@ -7,7 +7,9 @@ use tauri::{AppHandle, Emitter, Manager, Window, WindowEvent, Wry};
 
 use crate::core::groups::{self, Group, GroupIcon};
 use crate::core::profile;
+use crate::core::settings;
 use crate::core::types::ProfileStatus;
+use crate::core::usage::Usage;
 use crate::platform;
 use crate::tray_icons;
 
@@ -29,6 +31,9 @@ const LABEL_REGISTRY_BROKEN: &str = "\u{26a0} Profile list unavailable";
 const LABEL_OPEN_PREFERENCES: &str = "Open Preferences to Fix\u{2026}";
 const LABEL_MORE: &str = "More\u{2026}";
 const LABEL_PREFERENCES: &str = "Preferences\u{2026}";
+const LABEL_USAGE_SEPARATOR: &str = " \u{2014} ";
+const LABEL_USAGE_JOIN: &str = " / ";
+const LABEL_USAGE_UNIT: &str = "%";
 /// Only fires while cdm is frontmost: an Accessory app has no menu bar to own the key globally.
 const PREFERENCES_ACCELERATOR: &str = "CmdOrCtrl+,";
 
@@ -141,12 +146,14 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
     sort_for_display(&mut profiles);
     let binary_ok = platform::current().find_claude_binary().is_ok();
 
+    let show_usage = settings::load().show_usage_limits;
+
     let version = version_item(app)?;
     let status = status_items(app, binary_ok)?;
     // Groups cannot break the tray: one that cannot be read simply does not render.
     let groups = groups::list().unwrap_or_default().groups;
-    let group_menus = group_items(app, &groups, &profiles, binary_ok)?;
-    let rows = ungrouped_items(app, &groups, &profiles, binary_ok)?;
+    let group_menus = group_items(app, &groups, &profiles, binary_ok, show_usage)?;
+    let rows = ungrouped_items(app, &groups, &profiles, binary_ok, show_usage)?;
     let preferences = preferences_item(app)?;
 
     let mut b = MenuBuilder::new(app).item(&version).separator();
@@ -215,10 +222,11 @@ fn group_items(
     groups: &[Group],
     profiles: &[ProfileStatus],
     enabled: bool,
+    show_usage: bool,
 ) -> tauri::Result<Vec<Submenu<Wry>>> {
     groups
         .iter()
-        .map(|group| group_menu(app, group, profiles, enabled))
+        .map(|group| group_menu(app, group, profiles, enabled, show_usage))
         .collect()
 }
 
@@ -227,6 +235,7 @@ fn group_menu(
     group: &Group,
     profiles: &[ProfileStatus],
     enabled: bool,
+    show_usage: bool,
 ) -> tauri::Result<Submenu<Wry>> {
     // Emoji ride in the label (native color text on every platform); lucide symbols become
     // menu images. The label is what the screen reader and Windows see.
@@ -258,7 +267,7 @@ fn group_menu(
         let marked = profiles.iter().any(|p| p.running_pid.is_some());
         for member in members.iter().take(MAX_ROWS) {
             let row_id = format!("{}{}", id::LAUNCH_PREFIX, member.profile.id);
-            submenu.append(&item(app, row_id, row_label(member, marked), enabled)?)?;
+            submenu.append(&item(app, row_id, row_label(member, marked, show_usage), enabled)?)?;
         }
         if members.len() > MAX_ROWS {
             submenu.append(&item(
@@ -277,6 +286,7 @@ fn ungrouped_items(
     groups: &[Group],
     profiles: &[ProfileStatus],
     enabled: bool,
+    show_usage: bool,
 ) -> tauri::Result<Vec<MenuItem<Wry>>> {
     let grouped: HashSet<&str> = groups
         .iter()
@@ -287,13 +297,14 @@ fn ungrouped_items(
         .filter(|status| !grouped.contains(status.profile.id.as_str()))
         .cloned()
         .collect();
-    profile_items(app, &ungrouped, enabled)
+    profile_items(app, &ungrouped, enabled, show_usage)
 }
 
 fn profile_items(
     app: &AppHandle,
     profiles: &[ProfileStatus],
     enabled: bool,
+    show_usage: bool,
 ) -> tauri::Result<Vec<MenuItem<Wry>>> {
     if profiles.is_empty() {
         return Ok(vec![item(app, id::EMPTY, LABEL_NO_PROFILES, false)?]);
@@ -303,7 +314,7 @@ fn profile_items(
     let mut items = Vec::with_capacity(profiles.len().min(MAX_ROWS) + 1);
     for p in profiles.iter().take(MAX_ROWS) {
         let row_id = format!("{}{}", id::LAUNCH_PREFIX, p.profile.id);
-        items.push(item(app, row_id, row_label(p, marked), enabled)?);
+        items.push(item(app, row_id, row_label(p, marked, show_usage), enabled)?);
     }
     if profiles.len() > MAX_ROWS {
         items.push(item(app, id::MORE, LABEL_MORE, true)?);
@@ -336,12 +347,36 @@ fn rasterize(svg: &str) -> Option<Vec<u8>> {
     Some(pixmap.data().to_vec())
 }
 
-fn row_label(p: &ProfileStatus, marked: bool) -> String {
-    match (marked, p.running_pid.is_some()) {
+fn row_label(p: &ProfileStatus, marked: bool, show_usage: bool) -> String {
+    let mut label = match (marked, p.running_pid.is_some()) {
         (true, true) => format!("{RUNNING_MARK}{}", p.profile.name),
         (true, false) => format!("{IDLE_MARK}{}", p.profile.name),
         _ => p.profile.name.clone(),
+    };
+    if show_usage {
+        if let Some(suffix) = usage_suffix(p.usage.as_ref()) {
+            label.push_str(&suffix);
+        }
     }
+    label
+}
+
+/// Tray rows are one line, so the sample age stays a Preferences detail. A percentage the API
+/// never reported is dropped rather than padded with a placeholder.
+fn usage_suffix(usage: Option<&Usage>) -> Option<String> {
+    let usage = usage?;
+    let shown: Vec<String> = [usage.five_hour, usage.seven_day]
+        .into_iter()
+        .flatten()
+        .map(|percent| format!("{percent}{LABEL_USAGE_UNIT}"))
+        .collect();
+    if shown.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "{LABEL_USAGE_SEPARATOR}{}",
+        shown.join(LABEL_USAGE_JOIN)
+    ))
 }
 
 /// Alphabetical, never most-recently-used: the target must not move under the cursor.

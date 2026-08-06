@@ -17,6 +17,7 @@ import {
   setGroupIcon,
   setLaunchAtLogin,
   setOpenPreferencesAtStart,
+  setShowUsageLimits,
   type AdoptCandidate,
   type CdmError,
   type GeneralSettings,
@@ -75,7 +76,11 @@ const state = {
   fatal: null as CdmError | null,
   version: "",
   update: { phase: "idle" } as UpdateState,
-  settings: { openPreferencesAtStart: true, launchAtLogin: false } as GeneralSettings,
+  settings: {
+    openPreferencesAtStart: true,
+    launchAtLogin: false,
+    showUsageLimits: true,
+  } as GeneralSettings,
   settingsError: null as string | null,
 };
 
@@ -201,6 +206,7 @@ function generalPane(): HTMLElement {
     renderGeneral({
       openPreferencesAtStart: state.settings.openPreferencesAtStart,
       launchAtLogin: state.settings.launchAtLogin,
+      showUsageLimits: state.settings.showUsageLimits,
       error: state.settingsError,
       onOpenPreferencesAtStart: (enabled) => {
         state.settings.openPreferencesAtStart = enabled;
@@ -209,6 +215,10 @@ function generalPane(): HTMLElement {
       onLaunchAtLogin: (enabled) => {
         state.settings.launchAtLogin = enabled;
         void store(setLaunchAtLogin(enabled));
+      },
+      onShowUsageLimits: (enabled) => {
+        state.settings.showUsageLimits = enabled;
+        void store(setShowUsageLimits(enabled));
       },
     }),
   ]);
@@ -289,6 +299,7 @@ function manager(): HTMLElement[] {
       missingIds: state.missing,
       filter: state.filter,
       reorderable: !state.groupsUnavailable,
+      showUsage: state.settings.showUsageLimits,
       onSelect: select,
       onActivate: launch,
       onFilter: (value) => {
@@ -308,6 +319,7 @@ function manager(): HTMLElement[] {
       status,
       launching: !!status && state.launching.has(status.profile.id),
       missing: !!status && state.missing.has(status.profile.id),
+      showUsage: state.settings.showUsageLimits,
       actions: {
         launch: () => {
           if (status) launch(status.profile.id);
@@ -518,6 +530,7 @@ const actions: CommandActions = {
   remove,
   adopt,
   copyDiagnostics: () => void copyDiagnostics(),
+  refresh: () => void refresh(),
 };
 
 function onKeydown(event: KeyboardEvent): void {

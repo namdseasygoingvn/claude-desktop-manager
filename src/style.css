@@ -314,6 +314,19 @@ button {
   color: var(--text-dim);
 }
 
+.row-usage {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The mark and the grip re-centre over a row that grew a third line. */
+.profile-row:has(.row-usage) .bullet,
+.profile-row:has(.row-usage) .row-grip {
+  grid-row: 1 / span 3;
+}
+
 .profile-row .row-grip {
   grid-column: 3;
   grid-row: 1 / span 2;
@@ -494,6 +507,45 @@ button {
 .detail-status {
   margin: 4px 0 20px;
   color: var(--text-dim);
+}
+
+.usage-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  margin-bottom: 20px;
+}
+
+.usage-bars:empty {
+  display: none;
+}
+
+.usage-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 8px;
+}
+
+.usage-bar-label {
+  color: var(--text-dim);
+}
+
+.usage-bar-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-bar-track {
+  grid-column: 1 / -1;
+  height: 6px;
+  overflow: hidden;
+  background: var(--selected);
+  border-radius: var(--radius);
+}
+
+.usage-bar-fill {
+  height: 100%;
+  background: var(--accent);
 }
 
 .detail-actions {

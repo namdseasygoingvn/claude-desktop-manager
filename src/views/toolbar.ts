@@ -1,4 +1,4 @@
-import { ChevronDown, Ellipsis, icon, Minus, Plus, type IconNode } from "./icons";
+import { ChevronDown, Ellipsis, icon, Minus, Plus, RefreshCw, type IconNode } from "./icons";
 import { openMenu, type MenuEntry } from "./menu";
 import { isMac } from "./platform";
 import { nouns, t } from "./strings";
@@ -14,6 +14,7 @@ export interface CommandActions {
   remove: () => void;
   adopt: () => void;
   copyDiagnostics: () => void;
+  refresh: () => void;
 }
 
 export interface CommandState {
@@ -41,6 +42,11 @@ export function renderToolbar(state: CommandState, actions: CommandActions): HTM
   more.setAttribute("aria-haspopup", "menu");
   more.addEventListener("click", () => openMenu(moreMenu(state, actions), more));
   bar.append(more);
+
+  const reload = iconButton(t.usage.refresh, RefreshCw);
+  reload.dataset.focusKey = "refresh";
+  reload.addEventListener("click", actions.refresh);
+  bar.append(reload);
 
   return bar;
 }

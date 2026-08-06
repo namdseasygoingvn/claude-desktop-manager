@@ -4,6 +4,7 @@ import { GripVertical, groupIcon, icon } from "./icons";
 import { renderGroupHeader } from "./groups";
 import { neighbourMove, reorderStep } from "./reorder";
 import { lastUsedShort, t } from "./strings";
+import { usageText } from "./usage";
 
 export const FILTER_THRESHOLD = 10;
 
@@ -16,6 +17,7 @@ export interface ListProps {
   missingIds: Set<string>;
   filter: string;
   reorderable: boolean;
+  showUsage: boolean;
   onSelect: (id: string) => void;
   onActivate: (id: string) => void;
   onFilter: (value: string) => void;
@@ -223,6 +225,14 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
         : t.list.neverLaunched;
 
   row.append(bullet, name, secondary);
+
+  const usage = props.showUsage ? usageText(status.usage) : null;
+  if (usage) {
+    const line = document.createElement("span");
+    line.className = "row-usage";
+    line.textContent = usage;
+    row.append(line);
+  }
 
   // The grip is the drag source; it only appears on hover and never while filtering a subset.
   if (canReorder(props)) {

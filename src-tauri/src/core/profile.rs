@@ -12,6 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use super::naming;
 use super::registry;
 use super::types::{AdoptCandidate, CdmError, Profile, ProfileStatus, Registry, Result};
+use super::usage;
 use crate::platform;
 
 pub const MARKER_FILE: &str = ".cdm-profile";
@@ -64,10 +65,12 @@ pub fn list() -> Result<Vec<ProfileStatus>> {
         .profiles
         .into_iter()
         .map(|profile| {
-            let running_pid = plat.is_running(&root.join(&profile.dir)).unwrap_or(None);
+            let dir = root.join(&profile.dir);
+            let running_pid = plat.is_running(&dir).unwrap_or(None);
             ProfileStatus {
                 profile,
                 running_pid,
+                usage: usage::read(&dir),
             }
         })
         .collect())

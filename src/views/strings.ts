@@ -16,6 +16,8 @@ export function q(name: string): string {
   return `“${name}”`;
 }
 
+const MINUTE = 60_000;
+const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
 function time(date: Date): string {
@@ -38,6 +40,14 @@ export function lastUsedShort(iso: string): string {
 export function lastUsedLong(iso: string, lowercase = false): string {
   const date = new Date(iso);
   return `${lowercase ? "last" : "Last"} used ${day(date, new Date())} at ${time(date)}`;
+}
+
+export function sampleAge(epochMs: number): string {
+  const elapsed = Date.now() - epochMs;
+  if (elapsed < MINUTE) return "just now";
+  if (elapsed < HOUR) return `${Math.floor(elapsed / MINUTE)}m ago`;
+  if (elapsed < DAY) return `${Math.floor(elapsed / HOUR)}h ago`;
+  return `${Math.floor(elapsed / DAY)}d ago`;
 }
 
 export function createdLine(iso: string): string {
@@ -164,6 +174,15 @@ export const t = {
     reveal: nouns.revealButton,
     delete: "Delete Profile…",
     created: createdLine,
+  },
+
+  usage: {
+    fiveHour: "5-hour limit",
+    weekly: "Weekly · all models",
+    show: "Show usage limits",
+    showHint: `Show each profile's 5-hour and weekly usage in the ${nouns.tray} and in this window.`,
+    refresh: "Refresh usage",
+    age: sampleAge,
   },
 
   orphan: {

@@ -3,9 +3,11 @@ import { t } from "./strings";
 export interface GeneralOptions {
   openPreferencesAtStart: boolean;
   launchAtLogin: boolean;
+  showUsageLimits: boolean;
   error: string | null;
   onOpenPreferencesAtStart: (enabled: boolean) => void;
   onLaunchAtLogin: (enabled: boolean) => void;
+  onShowUsageLimits: (enabled: boolean) => void;
 }
 
 export function renderGeneral(options: GeneralOptions): HTMLElement {
@@ -30,6 +32,13 @@ export function renderGeneral(options: GeneralOptions): HTMLElement {
       hint: t.general.launchAtLoginHint,
       checked: options.launchAtLogin,
       onChange: options.onLaunchAtLogin,
+    }),
+    toggle({
+      focusKey: "show-usage-limits",
+      label: t.usage.show,
+      hint: t.usage.showHint,
+      checked: options.showUsageLimits,
+      onChange: options.onShowUsageLimits,
     }),
   );
 
