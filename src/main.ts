@@ -65,6 +65,7 @@ import { renderToolbar, rowMenu, type CommandActions } from "./views/toolbar";
 import { RateMeter } from "./views/transfer";
 import {
   isBusy,
+  isPending,
   paintDownload,
   renderUpdates,
   type Downloading,
@@ -72,6 +73,10 @@ import {
 } from "./views/updates";
 
 const LAUNCH_FEEDBACK_MS = 3000;
+const UPDATE_POLL_MS = 60 * 60 * 1000;
+
+const NO_BADGES: ReadonlySet<TabId> = new Set();
+const UPDATE_BADGE: ReadonlySet<TabId> = new Set(["updates"]);
 
 const root = document.getElementById("app") as HTMLElement;
 
@@ -169,7 +174,11 @@ function render(): void {
 }
 
 function panes(): HTMLElement[] {
-  const tabs = renderTabs({ active: state.tab, onSelect: selectTab });
+  const tabs = renderTabs({
+    active: state.tab,
+    badges: isPending(state.update) ? UPDATE_BADGE : NO_BADGES,
+    onSelect: selectTab,
+  });
   return [tabs, activePane()];
 }
 
@@ -287,6 +296,23 @@ function runUpdateCheck(): void {
       state.update = { phase: "failed", step: "check", detail: error.message };
     })
     .finally(settleUpdate);
+}
+
+/**
+ * Nobody asked for this one, so it stays quiet: no "Checking…" in the pane, and a failure is
+ * dropped rather than shown. It speaks up only to report a version worth having — leaving the
+ * phase untouched otherwise, so the next hour tries again.
+ */
+function pollForUpdate(): void {
+  if (isBusy(state.update) || isPending(state.update)) return;
+
+  void checkForUpdates()
+    .then((outcome) => {
+      if (outcome.status !== "available") return;
+      state.update = { phase: "available", version: outcome.version };
+      render();
+    })
+    .catch(() => {});
 }
 
 /** Replaced per install: the speed shown is this download's, not a previous attempt's. */
@@ -670,6 +696,9 @@ onTrayEvent("locateBinary", () => {
   showBinaryNotFound(() => void refresh());
 });
 onUpdateProgress(onProgress);
+
+pollForUpdate();
+setInterval(pollForUpdate, UPDATE_POLL_MS);
 
 void refresh().then(() => {
   focusEntry();

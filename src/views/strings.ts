@@ -72,6 +72,7 @@ export const t = {
     profiles: "Profiles",
     updates: "Updates",
     general: "General",
+    attention: "update pending",
   },
 
   general: {

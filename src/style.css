@@ -141,6 +141,38 @@ button {
   margin-bottom: -1px;
 }
 
+.tab-glyph {
+  position: relative;
+  display: inline-flex;
+}
+
+.tab-badge {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: tab-badge-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tab-badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-badge {
+    animation: none;
+  }
+}
+
 .pane {
   flex: 1;
   min-height: 0;

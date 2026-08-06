@@ -13,6 +13,7 @@ const TAB_ICONS: Record<TabId, IconNode> = {
 
 export interface TabsOptions {
   active: TabId;
+  badges: ReadonlySet<TabId>;
   onSelect: (tab: TabId) => void;
 }
 
@@ -27,7 +28,10 @@ export function renderTabs(options: TabsOptions): HTMLElement {
     tab.type = "button";
     tab.className = "tab";
     tab.setAttribute("role", "tab");
-    tab.append(icon(TAB_ICONS[id]), t.tabs[id]);
+    const badged = options.badges.has(id);
+    tab.append(glyph(id, badged), t.tabs[id]);
+    // A coloured dot says nothing out loud; the tab has to carry the word too.
+    if (badged) tab.append(note(t.tabs.attention));
     tab.dataset.focusKey = `tab-${id}`;
     const active = id === options.active;
     tab.setAttribute("aria-selected", String(active));
@@ -39,6 +43,26 @@ export function renderTabs(options: TabsOptions): HTMLElement {
   }
 
   return strip;
+}
+
+/** The badge hangs off the icon rather than the label, so the strip never reflows when it appears. */
+function glyph(id: TabId, badged: boolean): HTMLElement {
+  const wrap = document.createElement("span");
+  wrap.className = "tab-glyph";
+  wrap.append(icon(TAB_ICONS[id]));
+  if (badged) {
+    const dot = document.createElement("span");
+    dot.className = "tab-badge";
+    wrap.append(dot);
+  }
+  return wrap;
+}
+
+function note(text: string): HTMLElement {
+  const element = document.createElement("span");
+  element.className = "visually-hidden";
+  element.textContent = text;
+  return element;
 }
 
 function onKeydown(event: KeyboardEvent, id: TabId, onSelect: (tab: TabId) => void): void {

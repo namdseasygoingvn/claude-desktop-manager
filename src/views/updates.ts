@@ -69,6 +69,20 @@ export function isBusy(state: UpdateState): boolean {
   }
 }
 
+/** An update is waiting on the user — found, coming down, or downloaded and needing a restart. */
+export function isPending(state: UpdateState): boolean {
+  switch (state.phase) {
+    case "available":
+    case "downloading":
+    case "unpacking":
+    case "installed":
+    case "restarting":
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
  * Progress arrives ten times a second; a full re-render would tear down the pane and move focus
  * that often. Only a phase change earns a re-render — the rest repaints the bar in place.
