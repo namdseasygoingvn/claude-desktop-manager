@@ -1,13 +1,18 @@
+import type { Theme } from "../api";
 import { t } from "./strings";
+
+const THEMES: readonly Theme[] = ["light", "dark", "system"];
 
 export interface GeneralOptions {
   openPreferencesAtStart: boolean;
   launchAtLogin: boolean;
   showUsageLimits: boolean;
+  theme: Theme;
   error: string | null;
   onOpenPreferencesAtStart: (enabled: boolean) => void;
   onLaunchAtLogin: (enabled: boolean) => void;
   onShowUsageLimits: (enabled: boolean) => void;
+  onTheme: (theme: Theme) => void;
 }
 
 export function renderGeneral(options: GeneralOptions): HTMLElement {
@@ -19,6 +24,15 @@ export function renderGeneral(options: GeneralOptions): HTMLElement {
 
   pane.append(
     heading,
+    segmented({
+      focusKey: "theme",
+      label: t.general.theme,
+      hint: t.general.themeHint,
+      value: options.theme,
+      values: THEMES,
+      name: (theme) => t.general.themes[theme],
+      onChange: options.onTheme,
+    }),
     toggle({
       focusKey: "open-at-start",
       label: t.general.openAtStart,
@@ -78,6 +92,69 @@ function toggle(options: ToggleOptions): HTMLElement {
 
   row.append(input, text);
   return row;
+}
+
+interface SegmentedOptions<T extends string> {
+  focusKey: string;
+  label: string;
+  hint: string;
+  value: T;
+  values: readonly T[];
+  name: (value: T) => string;
+  onChange: (value: T) => void;
+}
+
+function segmented<T extends string>(options: SegmentedOptions<T>): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "settings-segmented";
+
+  const label = document.createElement("span");
+  label.className = "settings-label";
+  label.id = `${options.focusKey}-label`;
+  label.textContent = options.label;
+
+  const bar = document.createElement("div");
+  bar.className = "segmented";
+  bar.setAttribute("role", "radiogroup");
+  bar.setAttribute("aria-labelledby", label.id);
+
+  for (const value of options.values) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "segment";
+    button.setAttribute("role", "radio");
+    button.textContent = options.name(value);
+    button.dataset.focusKey = `${options.focusKey}-${value}`;
+    const checked = value === options.value;
+    button.setAttribute("aria-checked", String(checked));
+    // Only the checked segment is tabbable, so Tab leaves the group rather than walking it.
+    button.tabIndex = checked ? 0 : -1;
+    button.addEventListener("click", () => options.onChange(value));
+    button.addEventListener("keydown", (event) => onKeydown(event, value, options));
+    bar.append(button);
+  }
+
+  const hint = document.createElement("span");
+  hint.className = "helper";
+  hint.textContent = options.hint;
+
+  row.append(label, bar, hint);
+  return row;
+}
+
+/** Arrows move the choice itself, which is how a radiogroup is expected to behave. */
+function onKeydown<T extends string>(
+  event: KeyboardEvent,
+  value: T,
+  options: SegmentedOptions<T>,
+): void {
+  const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+  const back = event.key === "ArrowLeft" || event.key === "ArrowUp";
+  if (!forward && !back) return;
+  event.preventDefault();
+  const step = forward ? 1 : -1;
+  const { values } = options;
+  options.onChange(values[(values.indexOf(value) + step + values.length) % values.length]);
 }
 
 function failure(detail: string): HTMLElement {

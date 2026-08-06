@@ -8,6 +8,7 @@ use crate::core::groups;
 use crate::core::profile;
 use crate::core::registry;
 use crate::core::settings;
+use crate::core::theme::Theme;
 use crate::core::types::{AdoptCandidate, CdmError, Profile, ProfileStatus};
 use crate::platform;
 use crate::tray;
@@ -49,6 +50,7 @@ pub struct GeneralSettings {
     pub open_preferences_at_start: bool,
     pub show_usage_limits: bool,
     pub launch_at_login: bool,
+    pub theme: Theme,
 }
 
 #[derive(Debug, Serialize)]
@@ -197,6 +199,7 @@ pub fn get_general_settings(app: AppHandle) -> CmdResult<GeneralSettings> {
         show_usage_limits: stored.show_usage_limits,
         // An unreadable login item reads as off: the checkbox then offers to set it.
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
+        theme: stored.theme,
     })
 }
 
@@ -213,6 +216,16 @@ pub fn set_show_usage_limits(app: AppHandle, enabled: bool) -> CmdResult<()> {
     current.show_usage_limits = enabled;
     settings::save(&current)?;
     let _ = tray::rebuild(&app);
+    Ok(())
+}
+
+/// The webview repaints itself from the same value; this only has to carry it to the frame.
+#[tauri::command]
+pub fn set_theme(app: AppHandle, theme: Theme) -> CmdResult<()> {
+    let mut current = settings::load();
+    current.theme = theme;
+    settings::save(&current)?;
+    tray::apply_theme(&app, theme).map_err(|e| CdmError::Other(e.to_string()))?;
     Ok(())
 }
 

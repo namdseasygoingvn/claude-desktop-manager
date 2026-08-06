@@ -1,22 +1,15 @@
+/*
+ * Colours are keyed off data-theme, never a media query: the General tab can override the
+ * system, and JS resolves "system" to light or dark before the first render. What makes that
+ * safe is that no platform block below carries a colour — one that did would outrank the theme
+ * block trying to change it and strand that colour at a single value.
+ */
+
 :root {
-  --bg: #ffffff;
-  --bg-sidebar: #f2f2f4;
-  --bg-raised: #ffffff;
-  --text: #1c1c1e;
-  --text-dim: #6a6a70;
-  --line: #d8d8dc;
-  --accent: #2b6cb0;
   --accent-text: #ffffff;
-  --danger: #c02b1d;
-  --warn: #b3701a;
-  --success: #1a7f37;
-  --selected: #d9dde3;
-  --meter-track: rgba(0, 0, 0, 0.12);
-  --scrim: rgba(0, 0, 0, 0.25);
   --radius: 6px;
   --row-height: 44px;
 
-  color-scheme: light dark;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui,
     sans-serif;
   font-size: 13px;
@@ -25,25 +18,48 @@
 :root[data-platform="windows"] {
   --radius: 4px;
   --row-height: 40px;
+}
+
+/* Light also answers between parse and the first render, while nothing is resolved yet. */
+:root[data-theme="light"],
+:root:not([data-theme]) {
+  --bg: #ffffff;
+  --bg-sidebar: #f2f2f4;
+  --bg-raised: #ffffff;
+  --text: #1c1c1e;
+  --text-dim: #6a6a70;
+  --line: #d8d8dc;
+  --accent: #2b6cb0;
+  --danger: #c02b1d;
+  --warn: #b3701a;
+  --success: #1a7f37;
+  --selected: #d9dde3;
+  --meter-track: rgba(0, 0, 0, 0.12);
+  --scrim: rgba(0, 0, 0, 0.25);
+
+  color-scheme: light;
+}
+
+:root[data-theme="light"][data-platform="windows"] {
   --bg-sidebar: #f6f6f6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1e1e20;
-    --bg-sidebar: #252528;
-    --bg-raised: #2c2c30;
-    --text: #f2f2f5;
-    --text-dim: #a0a0a8;
-    --line: #3a3a3f;
-    --accent: #4c8ed9;
-    --danger: #ff6b5e;
-    --warn: #e5a344;
-    --success: #4ec26a;
-    --selected: #3a3a41;
-    --meter-track: rgba(255, 255, 255, 0.16);
-    --scrim: rgba(0, 0, 0, 0.45);
-  }
+:root[data-theme="dark"] {
+  --bg: #1e1e20;
+  --bg-sidebar: #252528;
+  --bg-raised: #2c2c30;
+  --text: #f2f2f5;
+  --text-dim: #a0a0a8;
+  --line: #3a3a3f;
+  --accent: #4c8ed9;
+  --danger: #ff6b5e;
+  --warn: #e5a344;
+  --success: #4ec26a;
+  --selected: #3a3a41;
+  --meter-track: rgba(255, 255, 255, 0.16);
+  --scrim: rgba(0, 0, 0, 0.45);
+
+  color-scheme: dark;
 }
 
 * {
@@ -202,6 +218,45 @@ button {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.settings-segmented {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 44em;
+}
+
+.settings-label {
+  font-weight: 600;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.segment {
+  min-height: 26px;
+  padding: 0 16px;
+  background: none;
+  border: 0;
+  border-radius: calc(var(--radius) - 1px);
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.segment:hover[aria-checked="false"] {
+  color: var(--text);
+}
+
+.segment[aria-checked="true"] {
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 .toolbar {

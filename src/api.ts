@@ -53,11 +53,15 @@ export interface GroupList {
   order: string[];
 }
 
+/** `system` is a deferral, not a palette: it resolves against whatever the OS reports. */
+export type Theme = "light" | "dark" | "system";
+
 /** The General tab. `launchAtLogin` is read back from the OS, not from a file cdm owns. */
 export interface GeneralSettings {
   openPreferencesAtStart: boolean;
   launchAtLogin: boolean;
   showUsageLimits: boolean;
+  theme: Theme;
 }
 
 /** The check only looks; installing is a separate, explicit step. */
@@ -188,6 +192,7 @@ export const setLaunchAtLogin = (enabled: boolean) =>
   call<void>("set_launch_at_login", { enabled });
 export const setShowUsageLimits = (enabled: boolean) =>
   call<void>("set_show_usage_limits", { enabled });
+export const setTheme = (theme: Theme) => call<void>("set_theme", { theme });
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
 export const installUpdate = () => call<string>("install_update");
 export const restartApp = () => call<void>("restart_app");

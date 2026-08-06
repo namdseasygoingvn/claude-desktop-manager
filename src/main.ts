@@ -19,12 +19,14 @@ import {
   setLaunchAtLogin,
   setOpenPreferencesAtStart,
   setShowUsageLimits,
+  setTheme,
   type AdoptCandidate,
   type CdmError,
   type GeneralSettings,
   type Group,
   type Profile,
   type ProfileStatus,
+  type Theme,
 } from "./api";
 import { openAdoptSheet, renderAdoptBanner } from "./views/adopt";
 import { openCreateSheet } from "./views/create";
@@ -54,6 +56,7 @@ import { matches, platform, shortcuts } from "./views/platform";
 import { openRenameSheet } from "./views/rename";
 import { t } from "./views/strings";
 import { renderTabs, type TabId } from "./views/tabs";
+import { applyTheme } from "./views/theme";
 import { renderToolbar, rowMenu, type CommandActions } from "./views/toolbar";
 import { renderUpdates, type UpdateState } from "./views/updates";
 
@@ -81,11 +84,14 @@ const state = {
     openPreferencesAtStart: true,
     launchAtLogin: false,
     showUsageLimits: true,
+    theme: "system",
   } as GeneralSettings,
   settingsError: null as string | null,
 };
 
 document.documentElement.dataset.platform = platform;
+// The stored choice arrives over IPC; until then the system's own appearance is the best guess.
+applyTheme(state.settings.theme);
 
 function selected(): ProfileStatus | null {
   return state.profiles.find((status) => status.profile.id === state.selectedId) ?? null;
@@ -133,8 +139,12 @@ function render(): void {
   const active = document.activeElement as HTMLElement | null;
   const previous = active?.dataset?.focusKey;
   const caret = active instanceof HTMLInputElement ? active.selectionStart : null;
-  // Focus follows the selection, so a keyboard move lands on the row it just selected.
-  const focusKey = previous?.startsWith("row-") ? `row-${state.selectedId}` : previous;
+  // Focus follows the selection, so a keyboard move lands on what it just chose.
+  const focusKey = previous?.startsWith("row-")
+    ? `row-${state.selectedId}`
+    : previous?.startsWith("theme-")
+      ? `theme-${state.settings.theme}`
+      : previous;
 
   root.replaceChildren(...panes());
 
@@ -209,7 +219,13 @@ function generalPane(): HTMLElement {
       openPreferencesAtStart: state.settings.openPreferencesAtStart,
       launchAtLogin: state.settings.launchAtLogin,
       showUsageLimits: state.settings.showUsageLimits,
+      theme: state.settings.theme,
       error: state.settingsError,
+      onTheme: (theme: Theme) => {
+        state.settings.theme = theme;
+        applyTheme(theme);
+        void store(setTheme(theme));
+      },
       onOpenPreferencesAtStart: (enabled) => {
         state.settings.openPreferencesAtStart = enabled;
         void store(setOpenPreferencesAtStart(enabled));
@@ -228,6 +244,7 @@ function generalPane(): HTMLElement {
 
 async function loadSettings(): Promise<void> {
   state.settings = await getGeneralSettings().catch(() => state.settings);
+  applyTheme(state.settings.theme);
   render();
 }
 

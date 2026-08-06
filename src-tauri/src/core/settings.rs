@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use super::persist;
+use super::theme::Theme;
 use super::types::Result;
 use crate::platform;
 
@@ -16,6 +17,7 @@ pub const SETTINGS_FILE: &str = "settings.json";
 pub struct Settings {
     pub open_preferences_at_start: bool,
     pub show_usage_limits: bool,
+    pub theme: Theme,
 }
 
 impl Default for Settings {
@@ -23,6 +25,7 @@ impl Default for Settings {
         Self {
             open_preferences_at_start: true,
             show_usage_limits: true,
+            theme: Theme::default(),
         }
     }
 }
@@ -68,11 +71,12 @@ mod tests {
         let settings = Settings {
             open_preferences_at_start: false,
             show_usage_limits: false,
+            theme: Theme::Dark,
         };
         let json = serde_json::to_string(&settings).unwrap();
         assert_eq!(
             json,
-            r#"{"openPreferencesAtStart":false,"showUsageLimits":false}"#
+            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark"}"#
         );
     }
 }

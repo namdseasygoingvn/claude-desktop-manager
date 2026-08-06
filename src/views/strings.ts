@@ -76,6 +76,9 @@ export const t = {
 
   general: {
     heading: "General",
+    theme: "Theme",
+    themeHint: "Match the system appearance, or pick one.",
+    themes: { light: "Light", dark: "Dark", system: "System" },
     openAtStart: "Open Preferences at start",
     openAtStartHint: `Uncheck to start straight in the ${nouns.tray}, with no window.`,
     launchAtLogin: "Open with System startup",

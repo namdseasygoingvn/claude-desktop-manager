@@ -70,6 +70,7 @@ fn run_manager() {
             commands::set_open_preferences_at_start,
             commands::set_show_usage_limits,
             commands::set_launch_at_login,
+            commands::set_theme,
             commands::list_groups,
             commands::create_group,
             commands::rename_group,
@@ -90,9 +91,12 @@ fn run_manager() {
             tray::init(app.handle())?;
             updater::spawn_background_check(app.handle());
             mcp::start(app.handle());
+            let stored = core::settings::load();
+            // Before any show(): a frame that repaints after the window is up is a visible flash.
+            let _ = tray::apply_theme(app.handle(), stored.theme);
             // Last, so the tray already exists behind the window the user is about to see.
             // Failing to show is not worth refusing to start over: the tray still works.
-            if core::settings::load().open_preferences_at_start {
+            if stored.open_preferences_at_start {
                 let _ = tray::show_preferences(app.handle());
             }
             Ok(())

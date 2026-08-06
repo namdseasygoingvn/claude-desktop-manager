@@ -8,6 +8,7 @@ use tauri::{AppHandle, Emitter, Manager, Window, WindowEvent, Wry};
 use crate::core::groups::{self, Group, GroupIcon};
 use crate::core::profile;
 use crate::core::settings;
+use crate::core::theme::Theme;
 use crate::core::types::ProfileStatus;
 use crate::core::usage::Usage;
 use crate::platform;
@@ -79,6 +80,20 @@ pub fn rebuild(app: &AppHandle) -> tauri::Result<()> {
             }
         }
     })
+}
+
+/// Paint the native frame to match. `None` hands the window back to the OS, which is what
+/// `System` means — there is no third frame colour to ask for.
+pub fn apply_theme(app: &AppHandle, theme: Theme) -> tauri::Result<()> {
+    let requested = match theme {
+        Theme::Light => Some(tauri::Theme::Light),
+        Theme::Dark => Some(tauri::Theme::Dark),
+        Theme::System => None,
+    };
+    if let Some(window) = app.get_webview_window(PREFERENCES_WINDOW) {
+        window.set_theme(requested)?;
+    }
+    Ok(())
 }
 
 pub fn show_preferences(app: &AppHandle) -> tauri::Result<()> {
