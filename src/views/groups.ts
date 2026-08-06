@@ -165,17 +165,8 @@ export function openAssignGroupSheet(options: {
   content.className = "assign-groups";
 
   const radios: HTMLInputElement[] = [];
-  const none = radio("assign-none", null);
-  none.checked = options.currentGroupId === null;
-  radios.push(none);
-  content.append(label(none, null));
-
-  for (const group of options.groups) {
-    const input = radio(`assign-${group.id}`, group);
-    if (group.id === options.currentGroupId) input.checked = true;
-    radios.push(input);
-    content.append(label(input, group));
-  }
+  content.append(row(null));
+  for (const group of options.groups) content.append(row(group));
 
   openDialog({
     title: t.groups.assignTitle,
@@ -203,22 +194,23 @@ export function openAssignGroupSheet(options: {
     ],
   });
 
-  function radio(id: string, group: Group | null): HTMLInputElement {
+  /** The radio lives inside its label: a detached one can never be checked, so nothing is chosen. */
+  function row(group: Group | null): HTMLLabelElement {
     const input = document.createElement("input");
     input.type = "radio";
     input.name = "assign-group";
-    input.id = id;
+    input.className = "assign-radio";
     input.dataset.groupId = group?.id ?? "";
-    return input;
-  }
+    input.checked = (group?.id ?? null) === options.currentGroupId;
+    radios.push(input);
 
-  function label(input: HTMLInputElement, group: Group | null): HTMLLabelElement {
-    const node = document.createElement("label");
-    node.htmlFor = input.id;
-    node.className = "assign-row";
-    if (group) node.append(groupIcon(group.icon));
     const name = document.createElement("span");
     name.textContent = group ? group.name : t.groups.assignNone;
+
+    const node = document.createElement("label");
+    node.className = "assign-row";
+    node.append(input);
+    if (group) node.append(groupIcon(group.icon));
     node.append(name);
     return node;
   }

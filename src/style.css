@@ -1060,8 +1060,14 @@ button {
   cursor: default;
 }
 
-.assign-row:hover {
+.assign-row:hover,
+.assign-row:has(:checked) {
   background: var(--selected);
+}
+
+.assign-radio {
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .assign-row .group-glyph-emoji {
