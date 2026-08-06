@@ -21,7 +21,7 @@ async fn pending(app: &AppHandle) -> Result<Option<Update>, String> {
 }
 
 /// Installing replaces the bundle on disk but leaves this process running the old code, so the
-/// update lands on the next launch. Restarting here would kill the profiles the manager spawned.
+/// update lands on the next launch — either the user's own, or `restart_app`.
 async fn install_latest(app: &AppHandle) -> Result<Option<String>, String> {
     let Some(update) = pending(app).await? else {
         return Ok(None);
@@ -64,4 +64,12 @@ pub async fn install_update(app: AppHandle) -> CmdResult<String> {
         .await
         .map_err(failed)?
         .ok_or_else(|| failed("no update is available".into()))
+}
+
+/// Profiles are spawned detached, so they outlive this. The single-instance handle must go first:
+/// on Windows the relaunch is a fresh process, and it would hand off to this dying one and exit.
+#[tauri::command]
+pub fn restart_app(app: AppHandle) {
+    tauri_plugin_single_instance::destroy(&app);
+    app.restart();
 }

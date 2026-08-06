@@ -13,6 +13,7 @@ import {
   onTrayEvent,
   onWindowShown,
   openConfig,
+  restartApp,
   revealProfile,
   setGroupIcon,
   setLaunchAtLogin,
@@ -197,6 +198,7 @@ function updatesPane(): HTMLElement {
       state: state.update,
       onCheck: runUpdateCheck,
       onUpdate: runUpdateInstall,
+      onRestart: runRestart,
     }),
   ]);
 }
@@ -242,7 +244,8 @@ async function store(pending: Promise<void>): Promise<void> {
 }
 
 function runUpdateCheck(): void {
-  if (state.update.phase === "checking" || state.update.phase === "installing") return;
+  const phase = state.update.phase;
+  if (phase === "checking" || phase === "installing" || phase === "restarting") return;
   state.update = { phase: "checking" };
   render();
 
@@ -274,10 +277,26 @@ function runUpdateInstall(): void {
     .finally(settleUpdate);
 }
 
-/** Focus lands on whatever the pane now offers: Update when one is waiting, otherwise Check. */
+/**
+ * The command only returns if the restart never happened — on success this process is already
+ * gone, webview and all.
+ */
+function runRestart(): void {
+  if (state.update.phase !== "installed") return;
+  state.update = { phase: "restarting", version: state.update.version };
+  render();
+
+  void restartApp().catch((error: CdmError) => {
+    state.update = { phase: "failed", step: "restart", detail: error.message };
+    settleUpdate();
+  });
+}
+
+/** Focus lands on whatever the pane now offers, in the order it asks to be acted on. */
 function settleUpdate(): void {
   render();
   const next =
+    root.querySelector<HTMLElement>('[data-focus-key="restart-app"]') ??
     root.querySelector<HTMLElement>('[data-focus-key="install-update"]') ??
     root.querySelector<HTMLElement>('[data-focus-key="check-updates"]');
   next?.focus();

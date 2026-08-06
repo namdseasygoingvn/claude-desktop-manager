@@ -94,11 +94,15 @@ export const t = {
     update: "Update",
     installing: "Installing…",
     installed: (version: string) =>
-      `Version ${version} is installed. It starts running the next time you open ${appName}.`,
-    // The running process keeps the old code on purpose: restarting would kill the profiles it spawned.
-    installedHint: "Your running profiles are untouched.",
-    checkFailed: "Couldn't check for updates.",
-    installFailed: "Couldn't install the update.",
+      `Version ${version} is installed. Restart ${appName} to start using it.`,
+    restart: "Restart Now",
+    restarting: "Restarting…",
+    installedHint: `Your running profiles stay open. Skip the restart and the update applies the next time you open ${appName}.`,
+    failed: {
+      check: "Couldn't check for updates.",
+      install: "Couldn't install the update.",
+      restart: `Couldn't restart ${appName}.`,
+    },
   },
 
   empty: {

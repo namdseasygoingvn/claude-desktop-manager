@@ -7,13 +7,15 @@ export type UpdateState =
   | { phase: "available"; version: string }
   | { phase: "installing"; version: string }
   | { phase: "installed"; version: string }
-  | { phase: "failed"; step: "check" | "install"; detail: string };
+  | { phase: "restarting"; version: string }
+  | { phase: "failed"; step: "check" | "install" | "restart"; detail: string };
 
 export interface UpdatesOptions {
   version: string;
   state: UpdateState;
   onCheck: () => void;
   onUpdate: () => void;
+  onRestart: () => void;
 }
 
 export function renderUpdates(options: UpdatesOptions): HTMLElement {
@@ -27,9 +29,10 @@ export function renderUpdates(options: UpdatesOptions): HTMLElement {
   version.className = "settings-value";
   version.textContent = t.updates.version(options.version);
 
-  const checking = options.state.phase === "checking";
+  const phase = options.state.phase;
+  const checking = phase === "checking";
   const check = button("check-updates", checking ? t.updates.checking : t.updates.check);
-  check.disabled = checking || options.state.phase === "installing";
+  check.disabled = checking || phase === "installing" || phase === "restarting";
   check.addEventListener("click", options.onCheck);
 
   pane.append(heading, version, check);
@@ -47,22 +50,46 @@ function outcome(options: UpdatesOptions): HTMLElement[] {
     case "installing":
       return [status(t.updates.available(state.version)), update(options, state.phase)];
     case "installed":
-      return [status(t.updates.installed(state.version)), helper(t.updates.installedHint)];
-    case "failed":
+    case "restarting":
       return [
-        status(state.step === "check" ? t.updates.checkFailed : t.updates.installFailed, "is-failed"),
-        helper(state.detail),
+        status(t.updates.installed(state.version)),
+        restart(options, state.phase),
+        helper(t.updates.installedHint),
       ];
+    case "failed":
+      return [status(t.updates.failed[state.step], "is-failed"), helper(state.detail)];
     default:
       return [];
   }
 }
 
 function update(options: UpdatesOptions, phase: "available" | "installing"): HTMLElement {
-  const busy = phase === "installing";
-  const element = button("install-update", busy ? t.updates.installing : t.updates.update);
+  return action(
+    "install-update",
+    { idle: t.updates.update, busy: t.updates.installing },
+    phase === "installing",
+    options.onUpdate,
+  );
+}
+
+function restart(options: UpdatesOptions, phase: "installed" | "restarting"): HTMLElement {
+  return action(
+    "restart-app",
+    { idle: t.updates.restart, busy: t.updates.restarting },
+    phase === "restarting",
+    options.onRestart,
+  );
+}
+
+function action(
+  focusKey: string,
+  label: { idle: string; busy: string },
+  busy: boolean,
+  onClick: () => void,
+): HTMLButtonElement {
+  const element = button(focusKey, busy ? label.busy : label.idle);
   element.disabled = busy;
-  element.addEventListener("click", options.onUpdate);
+  element.addEventListener("click", onClick);
   return element;
 }
 

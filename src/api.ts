@@ -190,6 +190,7 @@ export const setShowUsageLimits = (enabled: boolean) =>
   call<void>("set_show_usage_limits", { enabled });
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
 export const installUpdate = () => call<string>("install_update");
+export const restartApp = () => call<void>("restart_app");
 export const revealProfile = (id: string) => call<void>("reveal_profile", { id });
 
 // Beyond the agreed command contract. Every flow below is specified by plan/03 but has no
