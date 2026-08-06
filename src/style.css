@@ -426,8 +426,9 @@ button {
   color: var(--text-dim);
 }
 
-.group-rows {
-  margin-left: 14px;
+/* Indent the row, not its container — a container margin is a dead strip that swallows drops. */
+.group-rows .profile-row {
+  padding-left: 20px;
 }
 
 .group-header.is-ungrouped {

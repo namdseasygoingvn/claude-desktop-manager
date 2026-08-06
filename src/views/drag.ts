@@ -16,10 +16,17 @@ let draggingId: string | null = null;
 export function attachDrag(list: HTMLElement, opts: DragOpts): void {
   for (const grip of list.querySelectorAll<HTMLElement>(".row-grip")) {
     grip.addEventListener("dragstart", (event) => {
-      const id = grip.closest<HTMLElement>(".profile-row")?.dataset.profileId ?? "";
-      if (!id || !event.dataTransfer) return;
+      const row = grip.closest<HTMLElement>(".profile-row");
+      const id = row?.dataset.profileId ?? "";
+      if (!row || !id || !event.dataTransfer) return;
       draggingId = id;
-      grip.closest<HTMLElement>(".profile-row")?.classList.add("is-dragging");
+      // Without this the ghost is the 20x24 grip glyph, since the grip is the drag source.
+      const rect = row.getBoundingClientRect();
+      event.dataTransfer.setDragImage(row, event.clientX - rect.left, event.clientY - rect.top);
+      // The ghost is rasterised after this handler returns, so fading now fades the ghost too.
+      requestAnimationFrame(() => {
+        if (draggingId === id) row.classList.add("is-dragging");
+      });
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/plain", id);
     });
@@ -28,15 +35,19 @@ export function attachDrag(list: HTMLElement, opts: DragOpts): void {
 
   list.addEventListener("dragover", (event) => {
     if (!draggingId) return;
+    const target = resolveTarget(event, opts, list);
+    highlight(target);
+    // preventDefault is what makes a drop land, so withholding it stops the cursor from
+    // promising a drop that resolves to nothing.
+    if (!target) return;
     event.preventDefault();
     event.dataTransfer && (event.dataTransfer.dropEffect = "move");
-    highlight(resolveTarget(event, opts));
   });
 
   list.addEventListener("drop", (event) => {
     if (!draggingId) return;
     event.preventDefault();
-    const target = resolveTarget(event, opts);
+    const target = resolveTarget(event, opts, list);
     if (target) {
       const before = target.kind === "row" ? target.before : null;
       // Dropping a row into its own slot is a no-op; don't round-trip to the backend.
@@ -47,23 +58,14 @@ export function attachDrag(list: HTMLElement, opts: DragOpts): void {
 }
 
 /** Target under the pointer: a row (insert before/after it), a group, or the ungrouped slot. */
-function resolveTarget(event: DragEvent, opts: DragOpts): Target | null {
+function resolveTarget(event: DragEvent, opts: DragOpts, list: HTMLElement): Target | null {
   const hit = event.target as Element | null;
   if (!hit || !draggingId) return null;
 
   const row = hit.closest<HTMLElement>(".profile-row");
   if (row) {
-    const id = row.dataset.profileId ?? "";
-    if (!id || id === draggingId) return null;
     const rect = row.getBoundingClientRect();
-    const above = event.clientY < rect.top + rect.height / 2;
-    return {
-      kind: "row",
-      row,
-      groupId: groupOf(opts.groups, id),
-      above,
-      before: above ? id : nextRowId(row),
-    };
+    return rowTarget(row, opts, event.clientY < rect.top + rect.height / 2);
   }
 
   const header = hit.closest<HTMLElement>(".group-header");
@@ -74,7 +76,31 @@ function resolveTarget(event: DragEvent, opts: DragOpts): Target | null {
     const groupId = header.dataset.groupId ?? "";
     if (groupId) return { kind: "group", header, groupId };
   }
-  return null;
+
+  // The margin between sections and the space under the last row belong to no element the
+  // hit test can name, so read them as "after the last row that ends above the pointer".
+  const preceding = lastRowAbove(list, event.clientY);
+  return preceding ? rowTarget(preceding, opts, false) : null;
+}
+
+function rowTarget(row: HTMLElement, opts: DragOpts, above: boolean): Target | null {
+  const id = row.dataset.profileId ?? "";
+  if (!id || id === draggingId) return null;
+  return {
+    kind: "row",
+    row,
+    groupId: groupOf(opts.groups, id),
+    above,
+    before: above ? id : nextRowId(row),
+  };
+}
+
+function lastRowAbove(list: HTMLElement, y: number): HTMLElement | null {
+  let preceding: HTMLElement | null = null;
+  for (const row of list.querySelectorAll<HTMLElement>(".profile-row")) {
+    if (row.getBoundingClientRect().bottom <= y) preceding = row;
+  }
+  return preceding;
 }
 
 /** The row below `row` in its own section, or null when it is the last one (append). */

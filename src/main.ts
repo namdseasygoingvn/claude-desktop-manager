@@ -64,6 +64,7 @@ const state = {
   profiles: [] as ProfileStatus[],
   groups: [] as Group[],
   order: [] as string[],
+  groupsUnavailable: false,
   candidates: [] as AdoptCandidate[],
   selectedId: null as string | null,
   filter: "",
@@ -102,10 +103,13 @@ async function refresh(): Promise<void> {
     render();
     return;
   }
-  // Groups are cosmetic: an unreadable groups file must not break the profile list.
-  const groups = await listGroups().catch(() => ({ groups: [], order: [] }));
-  state.groups = groups.groups;
-  state.order = groups.order;
+  // Groups are cosmetic: an unreadable groups file must not break the profile list. But a
+  // failed read is not "no groups" — reordering from that view would send groupId: null and
+  // strip memberships the user still has.
+  const groups = await listGroups().catch(() => null);
+  state.groupsUnavailable = groups === null;
+  state.groups = groups?.groups ?? [];
+  state.order = groups?.order ?? [];
   const ids = new Set(state.profiles.map((status) => status.profile.id));
   for (const id of state.missing) if (!ids.has(id)) state.missing.delete(id);
   if (!state.selectedId || !ids.has(state.selectedId)) {
@@ -284,6 +288,7 @@ function manager(): HTMLElement[] {
       selectedId: state.selectedId,
       missingIds: state.missing,
       filter: state.filter,
+      reorderable: !state.groupsUnavailable,
       onSelect: select,
       onActivate: launch,
       onFilter: (value) => {

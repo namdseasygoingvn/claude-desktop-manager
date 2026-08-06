@@ -14,6 +14,7 @@ export interface ListProps {
   selectedId: string | null;
   missingIds: Set<string>;
   filter: string;
+  reorderable: boolean;
   onSelect: (id: string) => void;
   onActivate: (id: string) => void;
   onFilter: (value: string) => void;
@@ -140,11 +141,13 @@ function renderList(props: ListProps): HTMLElement {
     }
   });
 
-  attachDrag(list, {
-    profiles: props.profiles,
-    groups: props.groups,
-    onMove: props.onMove,
-  });
+  if (props.reorderable) {
+    attachDrag(list, {
+      profiles: props.profiles,
+      groups: props.groups,
+      onMove: props.onMove,
+    });
+  }
   return list;
 }
 
@@ -210,7 +213,7 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
   row.append(bullet, name, secondary);
 
   // The grip is the drag source; it only appears on hover and never while filtering a subset.
-  if (!props.filter.trim()) {
+  if (props.reorderable && !props.filter.trim()) {
     const grip = document.createElement("span");
     grip.className = "row-grip";
     grip.draggable = true;
