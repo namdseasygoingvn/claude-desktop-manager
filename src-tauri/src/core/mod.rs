@@ -1,3 +1,4 @@
+pub mod claude_code;
 pub mod groups;
 pub mod naming;
 mod persist;

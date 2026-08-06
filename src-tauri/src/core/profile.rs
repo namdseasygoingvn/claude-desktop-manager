@@ -9,6 +9,7 @@ use std::path::{Component, Path};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use super::claude_code;
 use super::naming;
 use super::registry;
 use super::types::{AdoptCandidate, CdmError, Profile, ProfileStatus, Registry, Result};
@@ -92,6 +93,11 @@ pub fn launch(id: &str) -> Result<u32> {
 
     let binary = plat.find_claude_binary()?;
     ensure_config(&dir)?;
+    // Only with the profile provably down: collapsing the runtime under a live app would swap
+    // the binary out from under it. Undecidable counts as running, and never blocks the launch.
+    if matches!(plat.is_running(&dir), Ok(None)) {
+        let _ = claude_code::sync(&dir);
+    }
     let pid = plat.launch(&binary, &dir)?;
 
     reg.profiles[idx].last_used_at = Some(now_rfc3339());

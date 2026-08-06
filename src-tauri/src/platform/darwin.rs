@@ -2,7 +2,9 @@
 
 use super::{Platform, ProfileProcesses};
 use crate::core::types::{CdmError, Result};
+use std::ffi::CString;
 use std::fs::File;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -63,6 +65,9 @@ impl Platform for Darwin {
     }
 
     fn terminate(&self, pid: u32, data_dir: &Path) -> Result<()> {
+        // Read before the kill: once the leader is gone its pgid is no longer resolvable.
+        let group = own_group(pid);
+
         // Measured: exits in ~1s taking every helper with it, Preferences byte-identical.
         signal(pid, libc::SIGTERM);
         if !super::wait_until(super::TERM_GRACE, || !alive(pid)) {
@@ -70,6 +75,14 @@ impl Platform for Darwin {
             super::wait_until(super::KILL_GRACE, || !alive(pid));
         }
 
+        // `spawn_detached` made the app its own group leader, so the group is exactly its
+        // subtree — everything it forked that never re-grouped itself dies here.
+        if let Some(group) = group {
+            signal_group(group, libc::SIGKILL);
+        }
+
+        // Children that *did* re-group (local-agent-mode runs each agent in its own session)
+        // escape the group kill and are reachable only by the data dir in their argv.
         let ProfileProcesses { all, .. } = super::processes_for(data_dir);
         for orphan in all {
             signal(orphan, libc::SIGKILL);
@@ -91,6 +104,31 @@ impl Platform for Darwin {
     fn trash(&self, path: &Path) -> Result<()> {
         super::trash_path(path)
     }
+
+    fn clone_tree(&self, src: &Path, dst: &Path) -> Result<()> {
+        clonefile(src, dst).or_else(|_| super::copy_tree(src, dst))
+    }
+}
+
+/// APFS clones the whole hierarchy in one call and shares every block until something writes,
+/// so the second profile to hold a given claude-code build costs no disk at all. Fails on any
+/// filesystem without the call, which is why the caller falls back to a real copy.
+fn clonefile(src: &Path, dst: &Path) -> Result<()> {
+    let (from, to) = (c_path(src)?, c_path(dst)?);
+    if unsafe { libc::clonefile(from.as_ptr(), to.as_ptr(), 0) } == 0 {
+        return Ok(());
+    }
+    Err(CdmError::Io(format!(
+        "clone {} to {}: {}",
+        src.display(),
+        dst.display(),
+        std::io::Error::last_os_error()
+    )))
+}
+
+fn c_path(path: &Path) -> Result<CString> {
+    CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| CdmError::Other(format!("path contains a nul byte: {}", path.display())))
 }
 
 fn standard_bundles() -> Vec<PathBuf> {
@@ -190,6 +228,21 @@ fn signal(pid: u32, sig: libc::c_int) {
         return;
     }
     unsafe { libc::kill(pid as libc::pid_t, sig) };
+}
+
+/// The pid's process group, but only once it is known to be neither init's nor cdm's — killing
+/// either of those would take down the machine's session or the manager itself.
+fn own_group(pid: u32) -> Option<u32> {
+    if pid == 0 {
+        return None;
+    }
+    let group = unsafe { libc::getpgid(pid as libc::pid_t) };
+    let mine = unsafe { libc::getpgrp() };
+    (group > 1 && group != mine).then_some(group as u32)
+}
+
+fn signal_group(group: u32, sig: libc::c_int) {
+    unsafe { libc::killpg(group as libc::pid_t, sig) };
 }
 
 fn alive(pid: u32) -> bool {

@@ -104,6 +104,12 @@ impl Platform for Win32 {
     fn trash(&self, path: &Path) -> Result<()> {
         super::trash_path(path)
     }
+
+    fn clone_tree(&self, src: &Path, dst: &Path) -> Result<()> {
+        // NTFS has no copy-on-write clone, so this costs real disk. The store still earns its
+        // keep by sparing every profile after the first the download.
+        super::copy_tree(src, dst)
+    }
 }
 
 fn lock_held(path: &Path) -> bool {
