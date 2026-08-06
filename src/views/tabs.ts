@@ -1,8 +1,8 @@
 import { t } from "./strings";
 
-export type TabId = "profiles" | "updates";
+export type TabId = "profiles" | "updates" | "general";
 
-export const TABS: readonly TabId[] = ["profiles", "updates"];
+export const TABS: readonly TabId[] = ["profiles", "updates", "general"];
 
 export interface TabsOptions {
   active: TabId;

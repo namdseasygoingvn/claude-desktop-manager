@@ -1,6 +1,7 @@
 import {
   appVersion,
   checkForUpdates,
+  getGeneralSettings,
   hideWindow,
   installUpdate,
   launchProfile,
@@ -14,8 +15,11 @@ import {
   openConfig,
   revealProfile,
   setGroupIcon,
+  setLaunchAtLogin,
+  setOpenPreferencesAtStart,
   type AdoptCandidate,
   type CdmError,
+  type GeneralSettings,
   type Group,
   type Profile,
   type ProfileStatus,
@@ -34,6 +38,7 @@ import {
   showLaunchFailed,
   showNotice,
 } from "./views/errors";
+import { renderGeneral } from "./views/general";
 import {
   openAssignGroupSheet,
   openDeleteGroupSheet,
@@ -69,6 +74,8 @@ const state = {
   fatal: null as CdmError | null,
   version: "",
   update: { phase: "idle" } as UpdateState,
+  settings: { openPreferencesAtStart: true, launchAtLogin: false } as GeneralSettings,
+  settingsError: null as string | null,
 };
 
 document.documentElement.dataset.platform = platform;
@@ -132,7 +139,18 @@ function render(): void {
 
 function panes(): HTMLElement[] {
   const tabs = renderTabs({ active: state.tab, onSelect: selectTab });
-  return [tabs, state.tab === "updates" ? updatesPane() : profilesPane()];
+  return [tabs, activePane()];
+}
+
+function activePane(): HTMLElement {
+  switch (state.tab) {
+    case "updates":
+      return updatesPane();
+    case "general":
+      return generalPane();
+    default:
+      return profilesPane();
+  }
 }
 
 function selectTab(tab: TabId): void {
@@ -172,6 +190,41 @@ function updatesPane(): HTMLElement {
       onUpdate: runUpdateInstall,
     }),
   ]);
+}
+
+function generalPane(): HTMLElement {
+  return pane("settings", [
+    renderGeneral({
+      openPreferencesAtStart: state.settings.openPreferencesAtStart,
+      launchAtLogin: state.settings.launchAtLogin,
+      error: state.settingsError,
+      onOpenPreferencesAtStart: (enabled) => {
+        state.settings.openPreferencesAtStart = enabled;
+        void store(setOpenPreferencesAtStart(enabled));
+      },
+      onLaunchAtLogin: (enabled) => {
+        state.settings.launchAtLogin = enabled;
+        void store(setLaunchAtLogin(enabled));
+      },
+    }),
+  ]);
+}
+
+async function loadSettings(): Promise<void> {
+  state.settings = await getGeneralSettings().catch(() => state.settings);
+  render();
+}
+
+/** The box the user just clicked already shows the new value; a refusal reads the truth back. */
+async function store(pending: Promise<void>): Promise<void> {
+  try {
+    await pending;
+    state.settingsError = null;
+    render();
+  } catch (error) {
+    state.settingsError = `${t.general.saveFailed} ${(error as CdmError).message}`;
+    await loadSettings();
+  }
 }
 
 function runUpdateCheck(): void {
@@ -520,5 +573,5 @@ onTrayEvent("locateBinary", () => {
 
 void refresh().then(() => {
   focusEntry();
-  return Promise.all([discover(), loadVersion()]);
+  return Promise.all([discover(), loadVersion(), loadSettings()]);
 });

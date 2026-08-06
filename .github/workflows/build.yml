@@ -54,12 +54,17 @@ jobs:
           echo "version=$NEXT" >> "$GITHUB_OUTPUT"
           echo "$CURRENT -> $NEXT"
 
-      - name: Commit the bump
+      # The tag is pushed here, not left for GitHub to create at publish time, so
+      # the release assets get their final tag-pinned download URLs while the
+      # release is still a draft. --atomic keeps the branch and tag in step.
+      - name: Commit and tag the bump
         run: |
+          TAG=v${{ steps.bump.outputs.version }}
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Release v${{ steps.bump.outputs.version }} [skip ci]"
-          git push
+          git commit -am "Release $TAG [skip ci]"
+          git tag "$TAG"
+          git push --atomic origin main "refs/tags/$TAG"
 
   # Tests are host-arch and platform-agnostic, so one job covers them. No `needs`, so
   # they start alongside the bump instead of inside a build job that then waits on
@@ -82,10 +87,33 @@ jobs:
         working-directory: src-tauri
         run: cargo test --locked
 
+  # One job creates the release, so the build matrix never races to create it. When
+  # every build job called tauri-action with only a tagName they each did their own
+  # check-then-create, and the loser died on `already_exists` before uploading —
+  # dropping its platform out of latest.json and breaking that arch's updater.
+  #
+  # It starts as a draft: `releases/latest` skips drafts, so a half-finished release
+  # is invisible to the updater until `publish` promotes it.
+  draft:
+    needs: bump
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.draft.outputs.id }}
+    steps:
+      - id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.bump.outputs.version }}
+        run: |
+          gh release create "$TAG" --draft --verify-tag \
+            --title "$TAG" --notes "$RELEASE_BODY"
+          echo "id=$(gh release view "$TAG" --json databaseId -q .databaseId)" >> "$GITHUB_OUTPUT"
+
   # One job per target. The two macOS arches used to be one universal build, which
   # compiled the whole app twice in series; as separate jobs they overlap instead.
   build:
-    needs: bump
+    needs: [bump, draft]
     strategy:
       fail-fast: false
       matrix:
@@ -98,9 +126,11 @@ jobs:
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
+      # The tag, not the branch: all three jobs build the same commit even if
+      # something lands on main while they run.
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: v${{ needs.bump.outputs.version }}
 
       - uses: actions/setup-node@v4
         with:

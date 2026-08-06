@@ -2,10 +2,12 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 use tauri::AppHandle;
+use tauri_plugin_autostart::ManagerExt;
 
 use crate::core::groups;
 use crate::core::profile;
 use crate::core::registry;
+use crate::core::settings;
 use crate::core::types::{AdoptCandidate, CdmError, Profile, ProfileStatus};
 use crate::platform;
 use crate::tray;
@@ -37,6 +39,15 @@ impl From<CdmError> for CommandError {
         };
         Self { kind, detail }
     }
+}
+
+/// The General tab, as one payload. Each field comes from its own owner: the checkbox state
+/// is stored, the login item is whatever the OS currently says.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneralSettings {
+    pub open_preferences_at_start: bool,
+    pub launch_at_login: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -175,6 +186,33 @@ pub fn open_config(id: String) -> CmdResult<()> {
 pub fn reveal_profile(id: String) -> CmdResult<()> {
     let dir = profile_dir(&id)?;
     tauri_plugin_opener::reveal_item_in_dir(dir).map_err(|e| CdmError::Io(e.to_string()).into())
+}
+
+#[tauri::command]
+pub fn get_general_settings(app: AppHandle) -> CmdResult<GeneralSettings> {
+    Ok(GeneralSettings {
+        open_preferences_at_start: settings::load().open_preferences_at_start,
+        // An unreadable login item reads as off: the checkbox then offers to set it.
+        launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
+    })
+}
+
+#[tauri::command]
+pub fn set_open_preferences_at_start(enabled: bool) -> CmdResult<()> {
+    let mut current = settings::load();
+    current.open_preferences_at_start = enabled;
+    Ok(settings::save(&current)?)
+}
+
+#[tauri::command]
+pub fn set_launch_at_login(app: AppHandle, enabled: bool) -> CmdResult<()> {
+    let manager = app.autolaunch();
+    let outcome = if enabled {
+        manager.enable()
+    } else {
+        manager.disable()
+    };
+    outcome.map_err(|e| CdmError::Io(e.to_string()).into())
 }
 
 #[tauri::command]

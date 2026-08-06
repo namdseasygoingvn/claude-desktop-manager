@@ -45,6 +45,12 @@ export interface GroupList {
   order: string[];
 }
 
+/** The General tab. `launchAtLogin` is read back from the OS, not from a file cdm owns. */
+export interface GeneralSettings {
+  openPreferencesAtStart: boolean;
+  launchAtLogin: boolean;
+}
+
 /** The check only looks; installing is a separate, explicit step. */
 export type UpdateOutcome =
   | { status: "upToDate"; version: string }
@@ -166,6 +172,11 @@ export const moveProfile = (
 ) => call<void>("move_profile", { profileId, groupId, before });
 export const openConfig = (id: string) => call<void>("open_config", { id });
 export const doctor = () => call<DoctorReport>("doctor");
+export const getGeneralSettings = () => call<GeneralSettings>("get_general_settings");
+export const setOpenPreferencesAtStart = (enabled: boolean) =>
+  call<void>("set_open_preferences_at_start", { enabled });
+export const setLaunchAtLogin = (enabled: boolean) =>
+  call<void>("set_launch_at_login", { enabled });
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
 export const installUpdate = () => call<string>("install_update");
 export const revealProfile = (id: string) => call<void>("reveal_profile", { id });

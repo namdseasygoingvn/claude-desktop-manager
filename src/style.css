@@ -182,6 +182,24 @@ button {
   max-width: 44em;
 }
 
+.settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 44em;
+}
+
+/* Nudge the box onto the label's first line, which sits lower than the input's own box. */
+.settings-toggle input {
+  margin: 2px 0 0;
+}
+
+.settings-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .toolbar {
   grid-area: toolbar;
   display: flex;

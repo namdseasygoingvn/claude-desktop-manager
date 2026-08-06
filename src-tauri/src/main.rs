@@ -52,6 +52,8 @@ fn run_manager() {
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // No args: anything past argv[0] would send the login-item launch down the CLI path.
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             commands::list_profiles,
             commands::create_profile,
@@ -64,6 +66,9 @@ fn run_manager() {
             commands::open_config,
             commands::reveal_profile,
             commands::doctor,
+            commands::get_general_settings,
+            commands::set_open_preferences_at_start,
+            commands::set_launch_at_login,
             commands::list_groups,
             commands::create_group,
             commands::rename_group,
@@ -82,6 +87,11 @@ fn run_manager() {
             tray::init(app.handle())?;
             updater::spawn_background_check(app.handle());
             mcp::start(app.handle());
+            // Last, so the tray already exists behind the window the user is about to see.
+            // Failing to show is not worth refusing to start over: the tray still works.
+            if core::settings::load().open_preferences_at_start {
+                let _ = tray::show_preferences(app.handle());
+            }
             Ok(())
         })
         .on_window_event(tray::on_window_event)

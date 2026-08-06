@@ -8,6 +8,8 @@ export const nouns = {
   revealItem: isMac ? "Reveal in Finder" : "Show in File Explorer",
   machine: isMac ? "this Mac" : "this PC",
   profilesRoot: isMac ? "Application Support" : "the Roaming folder",
+  tray: isMac ? "menu bar" : "system tray",
+  signIn: isMac ? "log in" : "sign in",
 };
 
 export function q(name: string): string {
@@ -59,6 +61,16 @@ export const t = {
     label: "Preferences sections",
     profiles: "Profiles",
     updates: "Updates",
+    general: "General",
+  },
+
+  general: {
+    heading: "General",
+    openAtStart: "Open Preferences at start",
+    openAtStartHint: `Uncheck to start straight in the ${nouns.tray}, with no window.`,
+    launchAtLogin: "Open with System startup",
+    launchAtLoginHint: `Start ${appName} automatically when you ${nouns.signIn} to ${nouns.machine}.`,
+    saveFailed: "Couldn't save that setting.",
   },
 
   updates: {
