@@ -43,6 +43,7 @@ export interface Shortcut {
   meta?: boolean;
   ctrl?: boolean;
   shift?: boolean;
+  alt?: boolean;
 }
 
 export const shortcuts = {
@@ -52,6 +53,8 @@ export const shortcuts = {
   editConfig: isMac ? { key: "e", meta: true } : { key: "e", ctrl: true },
   reveal: isMac ? { key: "r", meta: true, shift: true } : { key: "r", ctrl: true, shift: true },
   hideWindow: isMac ? { key: "w", meta: true } : { key: "Escape" },
+  moveUp: { key: "ArrowUp", alt: true },
+  moveDown: { key: "ArrowDown", alt: true },
 } satisfies Record<string, Shortcut>;
 
 export function matches(event: KeyboardEvent, shortcut: Shortcut): boolean {
@@ -59,5 +62,6 @@ export function matches(event: KeyboardEvent, shortcut: Shortcut): boolean {
   if (!!shortcut.meta !== event.metaKey) return false;
   if (!!shortcut.ctrl !== event.ctrlKey) return false;
   if (!!shortcut.shift !== event.shiftKey) return false;
+  if (!!shortcut.alt !== event.altKey) return false;
   return true;
 }

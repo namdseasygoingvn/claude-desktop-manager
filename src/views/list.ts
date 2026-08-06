@@ -2,6 +2,7 @@ import type { Group, ProfileStatus } from "../api";
 import { attachDrag } from "./drag";
 import { GripVertical, groupIcon, icon } from "./icons";
 import { renderGroupHeader } from "./groups";
+import { neighbourMove, reorderStep } from "./reorder";
 import { lastUsedShort, t } from "./strings";
 
 export const FILTER_THRESHOLD = 10;
@@ -25,6 +26,11 @@ export interface ListProps {
 }
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base" });
+
+/** A filtered list is a subset, so a move made from it would land against rows it cannot see. */
+function canReorder(props: ListProps): boolean {
+  return props.reorderable && !props.filter.trim();
+}
 
 /** Alphabetical so the click target never moves between clicks; createdAt breaks ties. */
 export function sortProfiles(profiles: ProfileStatus[]): ProfileStatus[] {
@@ -126,7 +132,13 @@ function renderList(props: ListProps): HTMLElement {
 
   list.addEventListener("keydown", (event) => {
     const index = visible.findIndex((status) => status.profile.id === props.selectedId);
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    const nudge = canReorder(props) ? reorderStep(event) : 0;
+    if (nudge !== 0) {
+      event.preventDefault();
+      const row = (event.target as Element | null)?.closest<HTMLElement>(".profile-row");
+      const move = row && neighbourMove(list, row, props.groups, nudge);
+      if (move) props.onMove(move.id, move.groupId, move.before);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const step = event.key === "ArrowDown" ? 1 : -1;
       const next = visible[Math.min(Math.max(index + step, 0), visible.length - 1)];
@@ -213,7 +225,7 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
   row.append(bullet, name, secondary);
 
   // The grip is the drag source; it only appears on hover and never while filtering a subset.
-  if (props.reorderable && !props.filter.trim()) {
+  if (canReorder(props)) {
     const grip = document.createElement("span");
     grip.className = "row-grip";
     grip.draggable = true;

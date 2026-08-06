@@ -1,4 +1,5 @@
 import type { Group, ProfileStatus } from "../api";
+import { groupOf, nextRowId, prevRowId } from "./reorder";
 
 export interface DragOpts {
   profiles: ProfileStatus[];
@@ -48,10 +49,9 @@ export function attachDrag(list: HTMLElement, opts: DragOpts): void {
     if (!draggingId) return;
     event.preventDefault();
     const target = resolveTarget(event, opts, list);
-    if (target) {
-      const before = target.kind === "row" ? target.before : null;
-      // Dropping a row into its own slot is a no-op; don't round-trip to the backend.
-      if (before !== draggingId) opts.onMove(draggingId, target.groupId, before);
+    // Dropping a row into its own slot is a no-op; don't round-trip to the backend.
+    if (target && !isOwnSlot(target)) {
+      opts.onMove(draggingId, target.groupId, target.kind === "row" ? target.before : null);
     }
     clear();
   });
@@ -103,15 +103,10 @@ function lastRowAbove(list: HTMLElement, y: number): HTMLElement | null {
   return preceding;
 }
 
-/** The row below `row` in its own section, or null when it is the last one (append). */
-function nextRowId(row: HTMLElement): string | null {
-  const rows = Array.from(row.parentElement?.querySelectorAll<HTMLElement>(".profile-row") ?? []);
-  const next = rows[rows.indexOf(row) + 1];
-  return next?.dataset.profileId ?? null;
-}
-
-function groupOf(groups: Group[], profileId: string): string | null {
-  return groups.find((group) => group.profileIds.includes(profileId))?.id ?? null;
+/** True when the drop would land the dragged row exactly where it already sits. */
+function isOwnSlot(target: Target): boolean {
+  if (target.kind !== "row") return false;
+  return target.above ? prevRowId(target.row) === draggingId : target.before === draggingId;
 }
 
 function highlight(target: Target | null): void {
