@@ -51,7 +51,8 @@ export function renderDetail(props: DetailProps): HTMLElement {
     return pane;
   }
 
-  if (props.showUsage && props.status.usage) pane.append(usageBars(props.status.usage));
+  const meters = props.showUsage && props.status.usage && usageBars(props.status.usage, "detail");
+  if (meters) pane.append(meters);
 
   if (!profile.lastUsedAt && !props.launching) {
     const hint = document.createElement("p");

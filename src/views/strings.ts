@@ -126,7 +126,10 @@ export const t = {
     moreActions: "More Actions",
     addExisting: "Add Existing Folder…",
     copyDiagnostics: "Copy Diagnostics",
-    rowLabel: (name: string, running: boolean) => (running ? `${name}, running` : name),
+    rowLabel: (name: string, running: boolean, usage?: string | null) => {
+      const base = running ? `${name}, running` : name;
+      return usage ? `${base}, ${usage}` : base;
+    },
   },
 
   groups: {
@@ -183,6 +186,8 @@ export const t = {
   usage: {
     fiveHour: "5-hour limit",
     weekly: "Weekly · all models",
+    fiveHourShort: "5h",
+    weeklyShort: "7d",
     show: "Show usage limits",
     showHint: `Show each profile's 5-hour and weekly usage in the ${nouns.tray} and in this window.`,
     refresh: "Refresh usage",

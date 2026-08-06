@@ -4,7 +4,7 @@ import { GripVertical, groupIcon, icon } from "./icons";
 import { renderGroupHeader } from "./groups";
 import { neighbourMove, reorderStep } from "./reorder";
 import { lastUsedShort, t } from "./strings";
-import { usageText } from "./usage";
+import { usageBars, usageSummary } from "./usage";
 
 export const FILTER_THRESHOLD = 10;
 
@@ -193,12 +193,13 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
   const selected = profile.id === props.selectedId;
   const missing = props.missingIds.has(profile.id);
   const running = status.runningPid !== null;
+  const usage = props.showUsage ? status.usage : null;
 
   const row = document.createElement("div");
   row.className = "profile-row";
   row.setAttribute("role", "option");
   row.setAttribute("aria-selected", String(selected));
-  row.setAttribute("aria-label", t.list.rowLabel(profile.name, running));
+  row.setAttribute("aria-label", t.list.rowLabel(profile.name, running, usage && usageSummary(usage)));
   row.tabIndex = selected ? 0 : -1;
   row.dataset.focusKey = `row-${profile.id}`;
   row.dataset.profileId = profile.id;
@@ -226,12 +227,14 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
 
   row.append(bullet, name, secondary);
 
-  const usage = props.showUsage ? usageText(status.usage) : null;
   if (usage) {
-    const line = document.createElement("span");
-    line.className = "row-usage";
-    line.textContent = usage;
-    row.append(line);
+    const meters = usageBars(usage, "row");
+    if (meters) {
+      const age = document.createElement("span");
+      age.className = "row-usage-age";
+      age.textContent = t.usage.age(usage.sampledAt);
+      row.append(meters, age);
+    }
   }
 
   // The grip is the drag source; it only appears on hover and never while filtering a subset.
