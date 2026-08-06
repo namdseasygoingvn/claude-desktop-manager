@@ -21,9 +21,10 @@ pub const CONFIG_FILE: &str = "claude_desktop_config.json";
 pub const EMPTY_CONFIG: &str = "{\n  \"mcpServers\": {}\n}\n";
 pub const UNMANAGED_DIR: &str = "Claude";
 
-/// Claude Desktop writes the first two on first run; the third is the config cdm also seeds. Any
-/// one of them tells a real profile folder from an unrelated `Claude-notes/`.
-const PROFILE_EVIDENCE: [&str; 3] = ["Local State", "Preferences", CONFIG_FILE];
+/// Claude Desktop writes the first two on first run; the third is the config cdm also seeds. Not
+/// `Local State` or `Preferences`: every Electron app writes those, so a neighbouring app under
+/// the prefix — `claude-multi-account/` — would read as a profile.
+const PROFILE_EVIDENCE: [&str; 3] = ["ant-did", "ant-device-registry.json", CONFIG_FILE];
 
 pub fn create(name: &str) -> Result<Profile> {
     let name = non_empty(name)?;
@@ -416,22 +417,29 @@ mod tests {
     #[test]
     fn a_hand_made_folder_holding_profile_evidence_is_a_candidate() {
         let root = tempfile::tempdir().unwrap();
-        folder(root.path(), "Claude-Work", &["Local State"]);
+        folder(root.path(), "Claude-Work", &["ant-did"]);
         assert!(is_adoptable(root.path(), "Claude-Work", &Registry::default()));
     }
 
     #[test]
     fn the_unmanaged_claude_folder_is_never_a_candidate() {
         let root = tempfile::tempdir().unwrap();
-        folder(root.path(), UNMANAGED_DIR, &["Local State", "Preferences"]);
+        folder(root.path(), UNMANAGED_DIR, &["ant-did", "ant-device-registry.json"]);
         assert!(!is_adoptable(root.path(), UNMANAGED_DIR, &Registry::default()));
+    }
+
+    #[test]
+    fn an_unrelated_electron_app_under_the_prefix_is_not_a_candidate() {
+        let root = tempfile::tempdir().unwrap();
+        folder(root.path(), "claude-multi-account", &["Local State", "Preferences"]);
+        assert!(!is_adoptable(root.path(), "claude-multi-account", &Registry::default()));
     }
 
     #[test]
     fn a_marked_or_registered_folder_is_not_a_candidate() {
         let root = tempfile::tempdir().unwrap();
-        folder(root.path(), "Claude-Marked", &["Preferences", MARKER_FILE]);
-        folder(root.path(), "Claude-Listed", &["Preferences"]);
+        folder(root.path(), "Claude-Marked", &["ant-did", MARKER_FILE]);
+        folder(root.path(), "Claude-Listed", &["ant-did"]);
         assert!(!is_adoptable(root.path(), "Claude-Marked", &Registry::default()));
         // Registered under a differently-cased spelling: the same folder either way.
         assert!(!is_adoptable(root.path(), "Claude-Listed", &registered(&["claude-listed"])));
