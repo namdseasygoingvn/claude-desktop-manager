@@ -84,14 +84,16 @@ function outcome(options: UpdatesOptions): HTMLElement[] {
     case "upToDate":
       return [status(t.updates.upToDate(state.version), "is-ok")];
     case "available":
-    case "unpacking":
       return [status(t.updates.available(state.version)), update(options, state.phase)];
     case "downloading":
       return [
-        status(t.updates.available(state.version)),
+        status(t.updates.installingVersion(state.version)),
         update(options, state.phase),
         meter(state),
       ];
+    // The button already reads "Unpacking bundle…"; a status line would only say it twice.
+    case "unpacking":
+      return [update(options, state.phase)];
     case "installed":
     case "restarting":
       return [

@@ -92,10 +92,10 @@ export const t = {
     check: "Check for Updates",
     checking: "Checking…",
     upToDate: (version: string) => `You're up to date! Version is ${version}`,
-    available: (version: string) =>
-      `Version ${version} is ready to install! Click Update to install`,
+    available: (version: string) => `Version ${version} is available.`,
     update: "Update",
     installing: "Installing…",
+    installingVersion: (version: string) => `Installing version ${version}…`,
     unpacking: "Unpacking bundle…",
     downloadLabel: "Update download",
     starting: "Starting download…",
