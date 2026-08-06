@@ -85,6 +85,7 @@ fn run_manager() {
             app.handle()
                 .set_activation_policy(tauri::ActivationPolicy::Accessory)?;
             reconcile_at_startup();
+            refresh_login_item(app.handle());
             tray::init(app.handle())?;
             updater::spawn_background_check(app.handle());
             mcp::start(app.handle());
@@ -98,6 +99,20 @@ fn run_manager() {
         .on_window_event(tray::on_window_event)
         .run(tauri::generate_context!())
         .expect("failed to start Claude Desktop Manager");
+}
+
+/// The login item stores an absolute path to the binary and `is_enabled` only checks that the
+/// entry exists, so renaming the binary leaves an entry pointing at nothing while the setting
+/// still reads as on. Rewrite it against the running executable.
+fn refresh_login_item(app: &tauri::AppHandle) {
+    use tauri_plugin_autostart::ManagerExt;
+
+    let manager = app.autolaunch();
+    if manager.is_enabled().unwrap_or(false) {
+        if let Err(err) = manager.enable() {
+            log::error!("cannot refresh the login item: {err}");
+        }
+    }
 }
 
 fn reconcile_at_startup() {
