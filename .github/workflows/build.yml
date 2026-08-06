@@ -92,6 +92,10 @@ jobs:
   # check-then-create, and the loser died on `already_exists` before uploading —
   # dropping its platform out of latest.json and breaking that arch's updater.
   #
+  # The id, not the tag, is what the build jobs consume: tauri-action's by-tag lookup
+  # cannot see a draft, so a tagName alone would send it right back to creating a
+  # second release for the same tag.
+  #
   # It starts as a draft: `releases/latest` skips drafts, so a half-finished release
   # is invisible to the updater until `publish` promotes it.
   draft:
@@ -150,18 +154,52 @@ jobs:
 
       - run: npm ci
 
-      # tauri-action builds, signs the update artifacts, publishes the release, and
-      # generates the latest.json the updater reads. Parallel jobs merge into one
-      # release and one latest.json rather than clobbering each other.
+      # tauri-action builds, signs the update artifacts, uploads them to the draft,
+      # and merges its platform into the latest.json the updater reads. releaseBody
+      # is not for the release — the draft already has it — it becomes the `notes`
+      # field of latest.json.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          releaseId: ${{ needs.draft.outputs.id }}
           tagName: v${{ needs.bump.outputs.version }}
-          releaseName: v${{ needs.bump.outputs.version }}
           releaseBody: ${{ env.RELEASE_BODY }}
-          releaseDraft: false
-          prerelease: false
           args: --target ${{ matrix.target }}
+
+  # Handed a releaseId, tauri-action uploads but never publishes, so promoting the
+  # draft is this job's whole purpose. `needs` requires every build to have
+  # succeeded: a release missing a platform stays a draft, where `releases/latest`
+  # cannot serve its half-populated latest.json to the updater.
+  publish:
+    needs: [draft, build]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      ID: ${{ needs.draft.outputs.id }}
+    steps:
+      # Green builds do not prove latest.json is whole. Each build job reads it,
+      # merges its own platform in, and re-uploads, so two finishing within a second
+      # of each other can lose one of the two writes. A dropped platform still
+      # leaves its signature on the release, so signatures nothing in latest.json
+      # points at are exactly the writes that went missing.
+      - name: Check latest.json covers every signed artifact
+        run: |
+          gh api --paginate "repos/$GH_REPO/releases/$ID/assets" > assets.json
+          gh api "repos/$GH_REPO/releases/assets/$(
+            jq -r '.[] | select(.name == "latest.json") | .id' assets.json
+          )" -H 'Accept: application/octet-stream' > latest.json
+          MISSING=$(jq -r --slurpfile latest latest.json '
+            [.[].name | select(endswith(".sig")) | rtrimstr(".sig")]
+            - [$latest[0].platforms[].url | split("/") | last]
+            | join(" ")' assets.json)
+          if [ -n "$MISSING" ]; then
+            echo "::error::latest.json has no entry for: $MISSING"
+            exit 1
+          fi
+
+      - name: Publish
+        run: gh api -X PATCH "repos/$GH_REPO/releases/$ID" -F draft=false
