@@ -1,5 +1,6 @@
 import type { ProfileStatus } from "../api";
 import { FolderOpen, icon, Pencil } from "./icons";
+import { runningLabel } from "./running";
 import { t } from "./strings";
 import { usageBars } from "./usage";
 
@@ -37,7 +38,7 @@ export function renderDetail(props: DetailProps): HTMLElement {
 
   const secondLine = document.createElement("p");
   secondLine.className = "detail-status";
-  secondLine.textContent = statusLine(props, running);
+  secondLine.append(...statusLine(props, running));
 
   const head = document.createElement("div");
   head.className = "detail-head";
@@ -111,12 +112,17 @@ function renameButton(onClick: () => void): HTMLButtonElement {
   return button;
 }
 
-function statusLine(props: DetailProps, running: boolean): string {
-  if (props.missing) return t.orphan.secondLine;
-  if (props.launching) return t.detail.starting;
-  if (running) return t.detail.running(props.status?.profile.lastUsedAt ?? null);
+/** A live profile hands back two nodes: the animated word, then the plain timestamp after it. */
+function statusLine(props: DetailProps, running: boolean): Node[] {
+  if (props.missing) return [document.createTextNode(t.orphan.secondLine)];
+  if (props.launching) return [runningLabel(t.detail.starting)];
+  if (running) {
+    const since = props.status?.profile.lastUsedAt;
+    const label = runningLabel(t.detail.running);
+    return since ? [label, document.createTextNode(t.detail.runningSince(since))] : [label];
+  }
   const lastUsed = props.status?.profile.lastUsedAt;
-  return lastUsed ? t.detail.idle(lastUsed) : t.detail.neverLaunched;
+  return [document.createTextNode(lastUsed ? t.detail.idle(lastUsed) : t.detail.neverLaunched)];
 }
 
 function orphanBody(actions: DetailActions): HTMLElement {

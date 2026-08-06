@@ -3,6 +3,7 @@ import { attachDrag } from "./drag";
 import { GripVertical, groupIcon, icon } from "./icons";
 import { renderGroupHeader } from "./groups";
 import { neighbourMove, reorderStep } from "./reorder";
+import { runningLabel } from "./running";
 import { lastUsedShort, t } from "./strings";
 import { usageBars, usageSummary } from "./usage";
 
@@ -206,26 +207,23 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
   row.classList.toggle("is-selected", selected);
   row.classList.toggle("is-missing", missing);
 
-  const bullet = document.createElement("span");
-  bullet.className = "bullet";
-  bullet.setAttribute("aria-hidden", "true");
-  bullet.textContent = running ? "●" : "";
-
   const name = document.createElement("span");
   name.className = "row-name";
   name.textContent = profile.name;
 
   const secondary = document.createElement("span");
   secondary.className = "row-secondary";
-  secondary.textContent = missing
-    ? t.list.missing
-    : running
-      ? t.list.running
-      : profile.lastUsedAt
-        ? lastUsedShort(profile.lastUsedAt)
-        : t.list.neverLaunched;
+  if (missing) {
+    secondary.textContent = t.list.missing;
+  } else if (running) {
+    secondary.append(runningLabel(t.list.running));
+  } else {
+    secondary.textContent = profile.lastUsedAt
+      ? lastUsedShort(profile.lastUsedAt)
+      : t.list.neverLaunched;
+  }
 
-  row.append(bullet, name, secondary);
+  row.append(name, secondary);
 
   if (usage) {
     const meters = usageBars(usage, "row");

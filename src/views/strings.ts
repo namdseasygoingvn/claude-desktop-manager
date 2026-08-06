@@ -182,7 +182,9 @@ export const t = {
     neverLaunched: "Never launched · not signed in yet",
     neverLaunchedHint:
       "Launch this profile and sign in to Claude. It won't affect any other profile.",
-    running: (iso: string | null) => (iso ? `Running · ${lastUsedLong(iso, true)}` : "Running"),
+    running: "Running",
+    /** Trails the running label in its own node, so the wave animation covers only the word. */
+    runningSince: (iso: string) => ` · ${lastUsedLong(iso, true)}`,
     idle: (iso: string) => lastUsedLong(iso),
     starting: "Starting…",
     launch: "Launch",

@@ -19,8 +19,6 @@ pub const PREFERENCES_WINDOW: &str = "main";
 
 /// Rows past this open Preferences instead; a menu taller than the screen is a broken menu.
 const MAX_ROWS: usize = 20;
-const RUNNING_MARK: &str = "\u{25cf} ";
-const IDLE_MARK: &str = "   ";
 /// Menu icons render at 18pt on macOS; the 2x bitmap keeps them crisp on retina.
 const MENU_ICON_SIZE: u32 = 36;
 
@@ -279,10 +277,9 @@ fn group_menu(
             false,
         )?)?;
     } else {
-        let marked = profiles.iter().any(|p| p.running_pid.is_some());
         for member in members.iter().take(MAX_ROWS) {
             let row_id = format!("{}{}", id::LAUNCH_PREFIX, member.profile.id);
-            submenu.append(&item(app, row_id, row_label(member, marked, show_usage), enabled)?)?;
+            submenu.append(&item(app, row_id, row_label(member, show_usage), enabled)?)?;
         }
         if members.len() > MAX_ROWS {
             submenu.append(&item(
@@ -325,11 +322,10 @@ fn profile_items(
         return Ok(vec![item(app, id::EMPTY, LABEL_NO_PROFILES, false)?]);
     }
 
-    let marked = profiles.iter().any(|p| p.running_pid.is_some());
     let mut items = Vec::with_capacity(profiles.len().min(MAX_ROWS) + 1);
     for p in profiles.iter().take(MAX_ROWS) {
         let row_id = format!("{}{}", id::LAUNCH_PREFIX, p.profile.id);
-        items.push(item(app, row_id, row_label(p, marked, show_usage), enabled)?);
+        items.push(item(app, row_id, row_label(p, show_usage), enabled)?);
     }
     if profiles.len() > MAX_ROWS {
         items.push(item(app, id::MORE, LABEL_MORE, true)?);
@@ -362,12 +358,8 @@ fn rasterize(svg: &str) -> Option<Vec<u8>> {
     Some(pixmap.data().to_vec())
 }
 
-fn row_label(p: &ProfileStatus, marked: bool, show_usage: bool) -> String {
-    let mut label = match (marked, p.running_pid.is_some()) {
-        (true, true) => format!("{RUNNING_MARK}{}", p.profile.name),
-        (true, false) => format!("{IDLE_MARK}{}", p.profile.name),
-        _ => p.profile.name.clone(),
-    };
+fn row_label(p: &ProfileStatus, show_usage: bool) -> String {
+    let mut label = p.profile.name.clone();
     if show_usage {
         if let Some(suffix) = usage_suffix(p.usage.as_ref()) {
             label.push_str(&suffix);
