@@ -197,6 +197,8 @@ export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
 export const installUpdate = () => call<string>("install_update");
 export const restartApp = () => call<void>("restart_app");
 export const revealProfile = (id: string) => call<void>("reveal_profile", { id });
+export const isTranslated = () => call<boolean>("is_translated");
+export const openReleasesPage = () => call<void>("open_releases_page");
 
 // Beyond the agreed command contract. Every flow below is specified by plan/03 but has no
 // command yet; each caller degrades to the plan's error path when the backend rejects.

@@ -59,6 +59,14 @@ pub fn current() -> &'static dyn Platform {
     &CURRENT
 }
 
+#[cfg(target_os = "macos")]
+pub use darwin::is_translated;
+
+#[cfg(target_os = "windows")]
+pub fn is_translated() -> bool {
+    false
+}
+
 pub(crate) fn liveness_lock_path(data_dir: &Path) -> PathBuf {
     LIVENESS_LOCK
         .iter()
@@ -126,14 +134,19 @@ fn strip_verbatim(path: PathBuf) -> PathBuf {
 }
 
 fn spawn_detached(binary: &Path, data_dir: &Path) -> Result<u32> {
-    let dir = canonical(data_dir);
-    let mut flag = OsString::from(USER_DATA_DIR_ARG);
-    flag.push(&dir);
+    spawn_prefixed(&[], binary, data_dir)
+}
 
-    let mut cmd = Command::new(binary);
+/// `prefix` fronts the command line with a launcher that execs the binary in place, so the pid
+/// is the binary's either way.
+fn spawn_prefixed(prefix: &[&str], binary: &Path, data_dir: &Path) -> Result<u32> {
+    let dir = canonical(data_dir);
+    let (program, args) = launch_command(prefix, binary, &dir);
+
+    let mut cmd = Command::new(program);
     // The env var is read before anything else and short-circuits the asar's `custom-3p`
     // branch, the one guarded `app.setPath('userData')` that would defeat the flag.
-    cmd.arg(flag)
+    cmd.args(args)
         .env(USER_DATA_DIR_ENV, &dir)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -146,6 +159,21 @@ fn spawn_detached(binary: &Path, data_dir: &Path) -> Result<u32> {
     let pid = child.id();
     reap_in_background(child);
     Ok(pid)
+}
+
+fn launch_command(prefix: &[&str], binary: &Path, dir: &Path) -> (OsString, Vec<OsString>) {
+    let mut flag = OsString::from(USER_DATA_DIR_ARG);
+    flag.push(dir);
+
+    match prefix.split_first() {
+        None => (binary.into(), vec![flag]),
+        Some((launcher, rest)) => {
+            let mut args: Vec<OsString> = rest.iter().map(OsString::from).collect();
+            args.push(binary.into());
+            args.push(flag);
+            ((*launcher).into(), args)
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -300,6 +328,7 @@ mod tests {
     use super::*;
 
     const DIR: &str = "/Users/x/Library/Application Support/Claude-Work";
+    const BIN: &str = "/Applications/Claude.app/Contents/MacOS/Claude";
 
     fn argv(args: &[&str]) -> Vec<OsString> {
         args.iter().map(OsString::from).collect()
@@ -307,6 +336,30 @@ mod tests {
 
     fn mentions(args: &[&str]) -> bool {
         mentions_data_dir(&argv(args), None, &[PathBuf::from(DIR)])
+    }
+
+    fn built(prefix: &[&str]) -> (OsString, Vec<OsString>) {
+        launch_command(prefix, Path::new(BIN), Path::new(DIR))
+    }
+
+    #[test]
+    fn without_a_prefix_the_binary_is_the_program_itself() {
+        let (program, args) = built(&[]);
+        assert_eq!(program, OsString::from(BIN));
+        assert_eq!(args, argv(&[&format!("{USER_DATA_DIR_ARG}{DIR}")]));
+    }
+
+    /// The launcher takes over argv[0], and the flag `uses_data_dir` matches on has to survive
+    /// as the last argument — the binary is what the launcher execs, not another flag.
+    #[test]
+    fn a_prefix_fronts_the_binary_and_leaves_the_data_dir_flag_last() {
+        let (program, args) = built(&["/usr/bin/arch", "-arm64"]);
+        assert_eq!(program, OsString::from("/usr/bin/arch"));
+        assert_eq!(
+            args,
+            argv(&["-arm64", BIN, &format!("{USER_DATA_DIR_ARG}{DIR}")])
+        );
+        assert!(uses_data_dir(&args, &[PathBuf::from(DIR)]));
     }
 
     /// The three shapes measured on a machine whose profiles had leaked: none carries

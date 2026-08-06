@@ -14,6 +14,8 @@ use crate::platform;
 use crate::tray;
 
 const CONFIG_FILE: &str = "claude_desktop_config.json";
+const RELEASES_URL: &str =
+    "https://github.com/namdseasygoingvn/claude-desktop-manager/releases/latest";
 
 pub type CmdResult<T> = std::result::Result<T, CommandError>;
 
@@ -258,6 +260,17 @@ pub fn doctor(app: AppHandle) -> CmdResult<DoctorReport> {
         profiles_root: profiles_root()?.display().to_string(),
         reconcile,
     })
+}
+
+#[tauri::command]
+pub fn is_translated() -> bool {
+    platform::is_translated()
+}
+
+#[tauri::command]
+pub fn open_releases_page() -> CmdResult<()> {
+    tauri_plugin_opener::open_url(RELEASES_URL, None::<&str>)
+        .map_err(|e| CdmError::Io(e.to_string()).into())
 }
 
 pub fn profile_dir(id: &str) -> CmdResult<PathBuf> {

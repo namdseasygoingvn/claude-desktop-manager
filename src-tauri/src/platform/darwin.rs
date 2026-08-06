@@ -2,7 +2,7 @@
 
 use super::{Platform, ProfileProcesses};
 use crate::core::types::{CdmError, Result};
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -17,6 +17,9 @@ const BUNDLE_ID: &str = "com.anthropic.claudefordesktop";
 const APP_SUPPORT: &str = "Library/Application Support";
 const PLIST_BUDDY: &str = "/usr/libexec/PlistBuddy";
 const MDFIND: &str = "/usr/bin/mdfind";
+const ARCH: &str = "/usr/bin/arch";
+const NATIVE_SLICE: &str = "-arm64";
+const TRANSLATED: &CStr = c"sysctl.proc_translated";
 
 impl Platform for Darwin {
     fn find_claude_binary(&self) -> Result<PathBuf> {
@@ -41,6 +44,16 @@ impl Platform for Darwin {
     }
 
     fn launch(&self, binary: &Path, data_dir: &Path) -> Result<u32> {
+        // macOS carries the parent's architecture preference across posix_spawn, so a translated
+        // cdm would pick the x86_64 slice of the universal bundle and leave every renderer's JIT
+        // running under Rosetta — measured at ~10s per keystroke. `arch` reselects the native
+        // slice. Its own spawn can still fail (no arm64 slice, no /usr/bin/arch), and a launch
+        // that is merely slow beats one that never happens.
+        if is_translated() {
+            if let Ok(pid) = super::spawn_prefixed(&[ARCH, NATIVE_SLICE], binary, data_dir) {
+                return Ok(pid);
+            }
+        }
         super::spawn_detached(binary, data_dir)
     }
 
@@ -108,6 +121,23 @@ impl Platform for Darwin {
     fn clone_tree(&self, src: &Path, dst: &Path) -> Result<()> {
         clonefile(src, dst).or_else(|_| super::copy_tree(src, dst))
     }
+}
+
+/// Whether this very process runs under Rosetta. The sysctl is absent on Intel, where the
+/// question is meaningless and the query simply fails.
+pub fn is_translated() -> bool {
+    let mut flag: libc::c_int = 0;
+    let mut size = std::mem::size_of_val(&flag);
+    let queried = unsafe {
+        libc::sysctlbyname(
+            TRANSLATED.as_ptr(),
+            (&mut flag as *mut libc::c_int).cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    queried == 0 && flag == 1
 }
 
 /// APFS clones the whole hierarchy in one call and shares every block until something writes,

@@ -274,6 +274,13 @@ export const t = {
     wrongPickInformative: "Pick the Claude app in your Applications folder.",
   },
 
+  rosetta: {
+    message: `This is the Intel build of ${appName}.`,
+    informative: `It's running through Rosetta on ${nouns.machine}, and every profile it launches inherits that — Claude Desktop then takes several seconds to answer each keystroke and click. The Apple silicon build fixes it. Updating in place won't, so that build has to be downloaded by hand.`,
+    download: "Get the Apple Silicon Build",
+    dismiss: "Continue Anyway",
+  },
+
   launch: {
     failedMessage: (name: string) => `Couldn't launch ${q(name)}.`,
     failedFallback: "Claude Desktop closed straight away.",

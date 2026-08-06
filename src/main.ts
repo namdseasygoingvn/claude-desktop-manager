@@ -4,6 +4,7 @@ import {
   getGeneralSettings,
   hideWindow,
   installUpdate,
+  isTranslated,
   launchProfile,
   listAdoptable,
   listGroups,
@@ -41,6 +42,7 @@ import {
   showBinaryNotFound,
   showLaunchFailed,
   showNotice,
+  showTranslatedBuild,
 } from "./views/errors";
 import { renderGeneral } from "./views/general";
 import {
@@ -615,6 +617,10 @@ async function loadVersion(): Promise<void> {
   render();
 }
 
+async function warnIfTranslated(): Promise<void> {
+  if (await isTranslated().catch(() => false)) showTranslatedBuild();
+}
+
 document.addEventListener("keydown", onKeydown);
 onWindowShown(() => {
   if (isDialogOpen()) return;
@@ -627,5 +633,5 @@ onTrayEvent("locateBinary", () => {
 
 void refresh().then(() => {
   focusEntry();
-  return Promise.all([discover(), loadVersion(), loadSettings()]);
+  return Promise.all([discover(), loadVersion(), loadSettings(), warnIfTranslated()]);
 });

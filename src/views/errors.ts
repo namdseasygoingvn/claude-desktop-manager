@@ -3,6 +3,7 @@ import {
   doctor,
   locateBinary,
   openDownloadPage,
+  openReleasesPage,
   rebuildRegistry,
   revealRegistry,
   type CdmError,
@@ -85,6 +86,25 @@ export function showBinaryNotFound(onResolved?: () => void): void {
       showNotice(t.binary.wrongPickMessage, t.binary.wrongPickInformative, () => void pickBinary());
     }
   }
+}
+
+export function showTranslatedBuild(): void {
+  openDialog({
+    message: t.rosetta.message,
+    informative: t.rosetta.informative,
+    buttons: [
+      {
+        id: "download",
+        label: t.rosetta.download,
+        role: "affirmative",
+        onSelect: (dialog) => {
+          void openReleasesPage().catch(() => undefined);
+          dialog.close();
+        },
+      },
+      { id: "dismiss", label: t.rosetta.dismiss, role: "cancel" },
+    ],
+  });
 }
 
 function copyDetailsButton(error: CdmError, context: ErrorContext): DialogButton {

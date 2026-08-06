@@ -66,6 +66,8 @@ fn run_manager() {
             commands::open_config,
             commands::reveal_profile,
             commands::doctor,
+            commands::is_translated,
+            commands::open_releases_page,
             commands::get_general_settings,
             commands::set_open_preferences_at_start,
             commands::set_show_usage_limits,
