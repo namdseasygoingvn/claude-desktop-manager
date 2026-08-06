@@ -1,8 +1,15 @@
+import { Download, Settings, Users, icon, type IconNode } from "./icons";
 import { t } from "./strings";
 
 export type TabId = "profiles" | "updates" | "general";
 
 export const TABS: readonly TabId[] = ["profiles", "updates", "general"];
+
+const TAB_ICONS: Record<TabId, IconNode> = {
+  profiles: Users,
+  updates: Download,
+  general: Settings,
+};
 
 export interface TabsOptions {
   active: TabId;
@@ -20,7 +27,7 @@ export function renderTabs(options: TabsOptions): HTMLElement {
     tab.type = "button";
     tab.className = "tab";
     tab.setAttribute("role", "tab");
-    tab.textContent = t.tabs[id];
+    tab.append(icon(TAB_ICONS[id]), t.tabs[id]);
     tab.dataset.focusKey = `tab-${id}`;
     const active = id === options.active;
     tab.setAttribute("aria-selected", String(active));
