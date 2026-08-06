@@ -212,6 +212,60 @@ button {
   max-width: 44em;
 }
 
+/* The update download. Sized and coloured like a usage meter, but it repaints ten times a
+   second, so the fill is the only thing that moves. */
+
+.download-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.download-meter-track {
+  overflow: hidden;
+  height: 6px;
+  background: var(--meter-track);
+  border-radius: 999px;
+}
+
+.download-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+/* No Content-Length, so there is no proportion to draw: a fixed sliver sweeps the track
+   instead of a fill that would have to lie about how far along it is. */
+.download-meter-fill.is-indeterminate {
+  width: 35%;
+  animation: download-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes download-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(286%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .download-meter-fill.is-indeterminate {
+    width: 100%;
+    animation: none;
+    opacity: 0.4;
+  }
+}
+
+.download-meter-readout {
+  margin: 0;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Nudge the box onto the label's first line, which sits lower than the input's own box. */
 .settings-toggle input {
   margin: 2px 0 0;

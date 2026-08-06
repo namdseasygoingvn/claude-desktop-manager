@@ -1,18 +1,41 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::commands::{CmdResult, CommandError};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 
+/// Chunks land far faster than a webview can paint; anything sooner than this folds into the
+/// next tick.
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+
+const PROGRESS_EVENT: &str = "cdm://update-progress";
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum UpdateOutcome {
     UpToDate { version: String },
     Available { version: String },
+}
+
+/// Byte counts only. Speed and time-remaining are smoothed in the webview, where the averaging
+/// window is a presentation choice.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase", tag = "step")]
+enum Progress {
+    Downloading { downloaded: u64, total: Option<u64> },
+    Unpacking,
+}
+
+/// Only a user-initiated install reports; the background poll stays silent, or a progress bar
+/// would appear in a window nobody asked to update.
+fn emit_progress(app: &AppHandle, report: bool, progress: Progress) {
+    if report {
+        let _ = app.emit(PROGRESS_EVENT, progress);
+    }
 }
 
 async fn pending(app: &AppHandle) -> Result<Option<Update>, String> {
@@ -22,13 +45,27 @@ async fn pending(app: &AppHandle) -> Result<Option<Update>, String> {
 
 /// Installing replaces the bundle on disk but leaves this process running the old code, so the
 /// update lands on the next launch — either the user's own, or `restart_app`.
-async fn install_latest(app: &AppHandle) -> Result<Option<String>, String> {
+async fn install_latest(app: &AppHandle, report: bool) -> Result<Option<String>, String> {
     let Some(update) = pending(app).await? else {
         return Ok(None);
     };
     let version = update.version.clone();
+    let mut downloaded = 0u64;
+    let mut next_emit = Instant::now();
     update
-        .download_and_install(|_, _| {}, || {})
+        .download_and_install(
+            |len, total| {
+                downloaded += len as u64;
+                let now = Instant::now();
+                // The final chunk always reports, so a bar that was given a total reaches it.
+                if now < next_emit && Some(downloaded) != total {
+                    return;
+                }
+                next_emit = now + PROGRESS_INTERVAL;
+                emit_progress(app, report, Progress::Downloading { downloaded, total });
+            },
+            || emit_progress(app, report, Progress::Unpacking),
+        )
         .await
         .map_err(|e| e.to_string())?;
     Ok(Some(version))
@@ -41,7 +78,7 @@ fn failed(detail: String) -> CommandError {
 pub fn spawn_background_check(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || loop {
-        match tauri::async_runtime::block_on(install_latest(&app)) {
+        match tauri::async_runtime::block_on(install_latest(&app, false)) {
             Ok(Some(version)) => log::info!("updated to {version}; applies on next launch"),
             Ok(None) => {}
             Err(detail) => log::warn!("update check failed: {detail}"),
@@ -60,7 +97,7 @@ pub async fn check_for_updates(app: AppHandle) -> CmdResult<UpdateOutcome> {
 
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> CmdResult<String> {
-    install_latest(&app)
+    install_latest(&app, true)
         .await
         .map_err(failed)?
         .ok_or_else(|| failed("no update is available".into()))

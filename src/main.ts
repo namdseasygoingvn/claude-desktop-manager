@@ -12,6 +12,7 @@ import {
   locateFolder,
   moveProfile,
   onTrayEvent,
+  onUpdateProgress,
   onWindowShown,
   openConfig,
   restartApp,
@@ -28,6 +29,7 @@ import {
   type Profile,
   type ProfileStatus,
   type Theme,
+  type UpdateProgress,
 } from "./api";
 import { openAdoptSheet, renderAdoptBanner } from "./views/adopt";
 import { openCreateSheet } from "./views/create";
@@ -60,7 +62,14 @@ import { t } from "./views/strings";
 import { renderTabs, type TabId } from "./views/tabs";
 import { applyTheme } from "./views/theme";
 import { renderToolbar, rowMenu, type CommandActions } from "./views/toolbar";
-import { renderUpdates, type UpdateState } from "./views/updates";
+import { RateMeter } from "./views/transfer";
+import {
+  isBusy,
+  paintDownload,
+  renderUpdates,
+  type Downloading,
+  type UpdateState,
+} from "./views/updates";
 
 const LAUNCH_FEEDBACK_MS = 3000;
 
@@ -263,8 +272,7 @@ async function store(pending: Promise<void>): Promise<void> {
 }
 
 function runUpdateCheck(): void {
-  const phase = state.update.phase;
-  if (phase === "checking" || phase === "installing" || phase === "restarting") return;
+  if (isBusy(state.update)) return;
   state.update = { phase: "checking" };
   render();
 
@@ -281,9 +289,19 @@ function runUpdateCheck(): void {
     .finally(settleUpdate);
 }
 
+/** Replaced per install: the speed shown is this download's, not a previous attempt's. */
+let downloadRate = new RateMeter();
+
 function runUpdateInstall(): void {
   if (state.update.phase !== "available") return;
-  state.update = { phase: "installing", version: state.update.version };
+  downloadRate = new RateMeter();
+  state.update = {
+    phase: "downloading",
+    version: state.update.version,
+    downloaded: 0,
+    total: null,
+    speed: null,
+  };
   render();
 
   void installUpdate()
@@ -294,6 +312,27 @@ function runUpdateInstall(): void {
       state.update = { phase: "failed", step: "install", detail: error.message };
     })
     .finally(settleUpdate);
+}
+
+/** The guard also drops events from a download that already finished, failed, or was superseded. */
+function onProgress(progress: UpdateProgress): void {
+  if (state.update.phase !== "downloading") return;
+
+  if (progress.step === "unpacking") {
+    state.update = { phase: "unpacking", version: state.update.version };
+    render();
+    return;
+  }
+
+  downloadRate.record(progress.downloaded);
+  const next: Downloading = {
+    ...state.update,
+    downloaded: progress.downloaded,
+    total: progress.total,
+    speed: downloadRate.perSecond(),
+  };
+  state.update = next;
+  paintDownload(root, next);
 }
 
 /**
@@ -630,6 +669,7 @@ onTrayEvent("locateBinary", () => {
   selectTab("profiles");
   showBinaryNotFound(() => void refresh());
 });
+onUpdateProgress(onProgress);
 
 void refresh().then(() => {
   focusEntry();

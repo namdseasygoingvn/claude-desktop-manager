@@ -8,6 +8,9 @@ export const TRAY_EVENTS = {
   locateBinary: "cdm://locate-binary",
 } as const;
 
+/** Mirrors `updater::PROGRESS_EVENT`. */
+const UPDATE_PROGRESS_EVENT = "cdm://update-progress";
+
 export interface Profile {
   id: string;
   name: string;
@@ -68,6 +71,11 @@ export interface GeneralSettings {
 export type UpdateOutcome =
   | { status: "upToDate"; version: string }
   | { status: "available"; version: string };
+
+/** Mirrors `updater::Progress`. `total` is null when the server sent no Content-Length. */
+export type UpdateProgress =
+  | { step: "downloading"; downloaded: number; total: number | null }
+  | { step: "unpacking" };
 
 /** Owned by the backend; the frontend only ever stringifies it into Copy Details. */
 export type DoctorReport = Record<string, unknown>;
@@ -232,6 +240,14 @@ export function hideWindow(): void {
 export function onTrayEvent(name: keyof typeof TRAY_EVENTS, handler: () => void): void {
   try {
     void listen(TRAY_EVENTS[name], () => handler());
+  } catch {
+    /* not running inside Tauri */
+  }
+}
+
+export function onUpdateProgress(handler: (progress: UpdateProgress) => void): void {
+  try {
+    void listen<UpdateProgress>(UPDATE_PROGRESS_EVENT, ({ payload }) => handler(payload));
   } catch {
     /* not running inside Tauri */
   }
