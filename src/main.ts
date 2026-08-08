@@ -1,7 +1,10 @@
 import {
   appVersion,
   checkForUpdates,
+  clearMcpLogs,
   getGeneralSettings,
+  getMcpLogs,
+  getMcpStatus,
   hideWindow,
   installUpdate,
   isTranslated,
@@ -19,6 +22,8 @@ import {
   revealProfile,
   setGroupIcon,
   setLaunchAtLogin,
+  setMcpEnabled,
+  setMcpPort,
   setOpenPreferencesAtStart,
   setShowUsageLimits,
   setTheme,
@@ -26,6 +31,7 @@ import {
   type CdmError,
   type GeneralSettings,
   type Group,
+  type McpStatus,
   type Profile,
   type ProfileStatus,
   type Theme,
@@ -38,6 +44,7 @@ import { renderDetail } from "./views/detail";
 import { isDialogOpen } from "./views/dialog";
 import { renderEmpty } from "./views/empty";
 import {
+  announce,
   copyDiagnostics,
   renderRegistryError,
   reportError,
@@ -45,6 +52,7 @@ import {
   showLaunchFailed,
   showNotice,
   showTranslatedBuild,
+  writeClipboard,
 } from "./views/errors";
 import { renderGeneral } from "./views/general";
 import {
@@ -55,6 +63,7 @@ import {
 } from "./views/groups";
 import { openIconPicker } from "./views/icon-picker";
 import { filterProfiles, ordered, renderSidebar } from "./views/list";
+import { paintMcp, type McpOptions } from "./views/mcp";
 import { openMenu, type MenuEntry } from "./views/menu";
 import { matches, platform, shortcuts } from "./views/platform";
 import { openRenameSheet } from "./views/rename";
@@ -75,9 +84,16 @@ import {
 
 const LAUNCH_FEEDBACK_MS = 3000;
 const UPDATE_POLL_MS = 60 * 60 * 1000;
+const MCP_POLL_MS = 1000;
+
+/** A tail, not the whole buffer: the pane is a few inches tall and repaints every second. */
+const MCP_LOG_LINES = 200;
 
 const NO_BADGES: ReadonlySet<TabId> = new Set();
 const UPDATE_BADGE: ReadonlySet<TabId> = new Set(["updates"]);
+
+/** The input types that have a selection to preserve across a re-render. */
+const SELECTABLE: ReadonlySet<string> = new Set(["text", "search", "url", "tel", "password"]);
 
 const root = document.getElementById("app") as HTMLElement;
 
@@ -104,6 +120,11 @@ const state = {
     theme: "system",
   } as GeneralSettings,
   settingsError: null as string | null,
+  /** Null until the first read answers; the section stays out rather than inventing a port. */
+  mcp: null as McpStatus | null,
+  mcpLogs: [] as string[],
+  mcpPortDraft: null as string | null,
+  mcpError: null as string | null,
 };
 
 document.documentElement.dataset.platform = platform;
@@ -155,7 +176,7 @@ async function discover(): Promise<void> {
 function render(): void {
   const active = document.activeElement as HTMLElement | null;
   const previous = active?.dataset?.focusKey;
-  const caret = active instanceof HTMLInputElement ? active.selectionStart : null;
+  const caret = caretOf(active);
   // Focus follows the selection, so a keyboard move lands on what it just chose.
   const focusKey = previous?.startsWith("row-")
     ? `row-${state.selectedId}`
@@ -172,6 +193,15 @@ function render(): void {
       restored.setSelectionRange(caret, caret);
     }
   }
+}
+
+/**
+ * A selection is only defined on the text-like inputs; the port field is a number, and asking
+ * one of those where its caret is answers null at best and throws at worst.
+ */
+function caretOf(element: Element | null): number | null {
+  if (!(element instanceof HTMLInputElement)) return null;
+  return SELECTABLE.has(element.type) ? element.selectionStart : null;
 }
 
 function panes(): HTMLElement[] {
@@ -196,6 +226,7 @@ function activePane(): HTMLElement {
 
 function selectTab(tab: TabId): void {
   state.tab = tab;
+  syncMcpPolling();
   render();
   root.querySelector<HTMLElement>(`[data-focus-key="tab-${tab}"]`)?.focus();
 }
@@ -242,6 +273,7 @@ function generalPane(): HTMLElement {
       showUsageLimits: state.settings.showUsageLimits,
       theme: state.settings.theme,
       error: state.settingsError,
+      mcp: mcpOptions(),
       onTheme: (theme: Theme) => {
         state.settings.theme = theme;
         applyTheme(theme);
@@ -267,6 +299,107 @@ async function loadSettings(): Promise<void> {
   state.settings = await getGeneralSettings().catch(() => state.settings);
   applyTheme(state.settings.theme);
   render();
+}
+
+function mcpOptions(): McpOptions | null {
+  const status = state.mcp;
+  if (!status) return null;
+  return {
+    status,
+    logs: state.mcpLogs,
+    portDraft: state.mcpPortDraft,
+    error: state.mcpError,
+    onEnabled: (enabled) => void applyMcp(setMcpEnabled(enabled)),
+    // Every keystroke would otherwise rebuild the pane the field lives in.
+    onPortDraft: (value) => {
+      state.mcpPortDraft = value;
+      if (value === null) render();
+    },
+    onPortCommit: commitMcpPort,
+    onCopyUrl: copyMcpUrl,
+    onClearLogs: () => void clearLog(),
+  };
+}
+
+/**
+ * Blur and Enter both land here, so most commits are of a port that has not moved. Re-committing
+ * the one already stored is still worth a round trip when nothing is listening on it: that is
+ * how a bind that lost the port to something else gets retried once the port is free again.
+ */
+function commitMcpPort(value: string): void {
+  const trimmed = value.trim();
+  const port = Number(trimmed);
+  const settled = port === state.mcp?.port && state.mcp.listening;
+  if (trimmed === "" || !Number.isInteger(port) || settled) {
+    state.mcpPortDraft = null;
+    render();
+    return;
+  }
+  void applyMcp(setMcpPort(port));
+}
+
+/** Both setters answer with the whole status, so a refused bind arrives with the refusal. */
+async function applyMcp(pending: Promise<McpStatus>): Promise<void> {
+  try {
+    state.mcp = await pending;
+    state.mcpError = null;
+  } catch (error) {
+    state.mcpError = `${t.mcp.saveFailed} ${(error as CdmError).message}`;
+  }
+  state.mcpPortDraft = null;
+  render();
+}
+
+function copyMcpUrl(): void {
+  const url = state.mcp?.url;
+  if (!url) return;
+  void writeClipboard(url).then(() => announce(t.mcp.copied));
+}
+
+async function clearLog(): Promise<void> {
+  await clearMcpLogs().catch(() => undefined);
+  state.mcpLogs = [];
+  render();
+}
+
+async function loadMcp(): Promise<void> {
+  const [status, logs] = await Promise.all([
+    getMcpStatus().catch(() => null),
+    getMcpLogs(MCP_LOG_LINES).catch(() => []),
+  ]);
+  if (status) state.mcp = status;
+  state.mcpLogs = logs;
+  render();
+}
+
+let mcpTimer: number | null = null;
+
+/** Only while the section is on screen: nothing here is worth a wakeup a second when it is not. */
+function syncMcpPolling(): void {
+  const wanted = state.tab === "general";
+  if (wanted === (mcpTimer !== null)) return;
+
+  if (mcpTimer !== null) {
+    window.clearInterval(mcpTimer);
+    mcpTimer = null;
+  }
+  if (wanted) mcpTimer = window.setInterval(() => void pollMcp(), MCP_POLL_MS);
+}
+
+/**
+ * Repaints in place rather than re-rendering: the counters and the log move on their own, and
+ * only the user moves anything structural. A hidden window is still on the General tab, and
+ * has no one to show it to.
+ */
+async function pollMcp(): Promise<void> {
+  if (document.hidden) return;
+  const [status, logs] = await Promise.all([
+    getMcpStatus().catch(() => null),
+    getMcpLogs(MCP_LOG_LINES).catch(() => null),
+  ]);
+  if (status) state.mcp = status;
+  if (logs) state.mcpLogs = logs;
+  if (state.mcp) paintMcp(root, state.mcp, state.mcpLogs);
 }
 
 /** The box the user just clicked already shows the new value; a refusal reads the truth back. */
@@ -707,6 +840,7 @@ void refresh().then(() => {
     discover(),
     loadVersion(),
     loadSettings(),
+    loadMcp(),
     restoreSidebarWidth(),
     warnIfTranslated(),
   ]);

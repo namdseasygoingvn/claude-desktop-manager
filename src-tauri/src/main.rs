@@ -82,6 +82,11 @@ fn run_manager() {
             commands::delete_group,
             commands::set_profile_group,
             commands::move_profile,
+            mcp::commands::get_mcp_status,
+            mcp::commands::set_mcp_enabled,
+            mcp::commands::set_mcp_port,
+            mcp::commands::get_mcp_logs,
+            mcp::commands::clear_mcp_logs,
             updater::check_for_updates,
             updater::install_update,
             updater::restart_app,
@@ -94,7 +99,7 @@ fn run_manager() {
             refresh_login_item(app.handle());
             tray::init(app.handle())?;
             updater::spawn_background_check(app.handle());
-            mcp::start(app.handle());
+            mcp::apply(app.handle());
             let stored = core::settings::load();
             // Before any show(): a frame that repaints after the window is up is a visible flash.
             let _ = tray::apply_theme(app.handle(), stored.theme);

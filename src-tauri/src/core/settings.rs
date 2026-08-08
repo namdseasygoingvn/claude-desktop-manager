@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::persist;
 use super::theme::Theme;
 use super::types::Result;
+use crate::mcp;
 use crate::platform;
 
 pub const SETTINGS_FILE: &str = "settings.json";
@@ -20,6 +21,8 @@ pub struct Settings {
     pub theme: Theme,
     /// None until the divider is dragged, so the stylesheet owns the starting width alone.
     pub sidebar_width: Option<u32>,
+    pub mcp_enabled: bool,
+    pub mcp_port: u16,
 }
 
 impl Default for Settings {
@@ -29,6 +32,9 @@ impl Default for Settings {
             show_usage_limits: true,
             theme: Theme::default(),
             sidebar_width: None,
+            // On, so the committed `.mcp.json` resolves without anyone having to find a switch.
+            mcp_enabled: true,
+            mcp_port: mcp::DEFAULT_PORT,
         }
     }
 }
@@ -76,11 +82,13 @@ mod tests {
             show_usage_limits: false,
             theme: Theme::Dark,
             sidebar_width: Some(320),
+            mcp_enabled: false,
+            mcp_port: 20209,
         };
         let json = serde_json::to_string(&settings).unwrap();
         assert_eq!(
             json,
-            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark","sidebarWidth":320}"#
+            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark","sidebarWidth":320,"mcpEnabled":false,"mcpPort":20209}"#
         );
     }
 
@@ -88,5 +96,12 @@ mod tests {
     fn a_file_from_before_the_divider_existed_has_no_width() {
         let parsed: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
         assert_eq!(parsed.sidebar_width, None);
+    }
+
+    #[test]
+    fn a_file_from_before_the_debug_server_had_a_switch_leaves_it_on() {
+        let parsed: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
+        assert!(parsed.mcp_enabled);
+        assert_eq!(parsed.mcp_port, mcp::DEFAULT_PORT);
     }
 }

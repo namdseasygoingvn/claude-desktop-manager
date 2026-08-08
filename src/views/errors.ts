@@ -269,7 +269,7 @@ export async function copyDiagnostics(): Promise<void> {
   announce(t.common.copied);
 }
 
-async function writeClipboard(text: string): Promise<void> {
+export async function writeClipboard(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
   } catch {

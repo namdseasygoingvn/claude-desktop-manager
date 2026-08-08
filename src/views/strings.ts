@@ -1,4 +1,5 @@
 import { isMac } from "./platform";
+import { formatDuration } from "./transfer";
 
 /** The only per-platform string difference the design allows. */
 export const nouns = {
@@ -85,6 +86,33 @@ export const t = {
     launchAtLogin: "Open with System startup",
     launchAtLoginHint: `Start ${appName} automatically when you ${nouns.signIn} to ${nouns.machine}.`,
     saveFailed: "Couldn't save that setting.",
+  },
+
+  mcp: {
+    heading: "MCP debugging",
+    enable: "Run the MCP debug server",
+    enableHint: `Serves this app's own state over MCP on ${nouns.machine}, so Claude Code can inspect and drive ${appName} while it runs.`,
+    port: "Port",
+    portHint: "Change this when something else already holds the port.",
+    listening: (url: string) => `Listening on ${url}`,
+    off: "Not running.",
+    failed: (port: number, detail: string) => `Can't listen on port ${port} — ${detail}`,
+    saveFailed: "Couldn't change that.",
+    copy: "Copy URL",
+    copied: "Connection URL copied.",
+    /** Reads as a sentence about the environment, because that is what took the decision away. */
+    overridden: (raw: string) =>
+      `CDM_MCP_PORT=${raw} is set, so it decides — the switch and port above are ignored until it's unset.`,
+    facts: (parts: string[]) => parts.join(" · "),
+    server: (name: string, version: string) => `${name} ${version}`,
+    protocol: (version: string) => `MCP ${version}`,
+    tools: (count: number) => (count === 1 ? "1 tool" : `${count} tools`),
+    requests: (count: number) => (count === 1 ? "1 request" : `${count} requests`),
+    uptime: (seconds: number) => `up ${formatDuration(seconds)}`,
+    log: "Log",
+    logEmpty: "Nothing logged yet.",
+    logHint: `Every ${appName} log record, newest last. MCP requests land here too.`,
+    clearLog: "Clear",
   },
 
   updates: {

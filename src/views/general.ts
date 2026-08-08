@@ -1,4 +1,5 @@
 import type { Theme } from "../api";
+import { renderMcp, type McpOptions } from "./mcp";
 import { t } from "./strings";
 
 const THEMES: readonly Theme[] = ["light", "dark", "system"];
@@ -9,6 +10,8 @@ export interface GeneralOptions {
   showUsageLimits: boolean;
   theme: Theme;
   error: string | null;
+  /** Null until the first status read answers, which is the only time the section is absent. */
+  mcp: McpOptions | null;
   onOpenPreferencesAtStart: (enabled: boolean) => void;
   onLaunchAtLogin: (enabled: boolean) => void;
   onShowUsageLimits: (enabled: boolean) => void;
@@ -57,6 +60,8 @@ export function renderGeneral(options: GeneralOptions): HTMLElement {
   );
 
   if (options.error) pane.append(failure(options.error));
+
+  if (options.mcp) pane.append(renderMcp(options.mcp));
 
   return pane;
 }

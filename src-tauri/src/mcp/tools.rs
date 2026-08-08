@@ -13,7 +13,7 @@ use crate::tray;
 /// Everything the debug server exposes to Claude Code. Each tool is a thin adapter over the
 /// same `commands::` function the window calls, so a tool can never drift from the real path.
 pub fn build(app: &AppHandle, port: u16) -> Vec<Tool> {
-    vec![
+    let mut tools = vec![
         info(app, port),
         logs(),
         list_profiles(),
@@ -38,7 +38,9 @@ pub fn build(app: &AppHandle, port: u16) -> Vec<Tool> {
         set_group_icon(app),
         delete_group(app),
         set_profile_group(app),
-    ]
+    ];
+    tools.extend(super::tools_state::all(app));
+    tools
 }
 
 fn list_groups() -> Tool {
@@ -167,7 +169,7 @@ fn info(app: &AppHandle, port: u16) -> Tool {
                 "version": app.package_info().version.to_string(),
                 "os": std::env::consts::OS,
                 "port": port,
-                "connectionUrl": format!("http://127.0.0.1:{port}/mcp"),
+                "connectionUrl": super::url(port),
                 "binary": binary,
                 "binaryError": binary_error,
                 "profilesRoot": path_or_error(commands::profiles_root()),
@@ -432,7 +434,7 @@ fn rebuild_tray(app: &AppHandle) -> Tool {
     )
 }
 
-fn tool(
+pub(super) fn tool(
     name: &'static str,
     description: &'static str,
     input_schema: Value,
@@ -446,11 +448,11 @@ fn tool(
     }
 }
 
-fn no_args() -> Value {
+pub(super) fn no_args() -> Value {
     json!({"type": "object", "properties": {}, "additionalProperties": false})
 }
 
-fn object(properties: Value, required: &[&str]) -> Value {
+pub(super) fn object(properties: Value, required: &[&str]) -> Value {
     json!({
         "type": "object",
         "properties": properties,
@@ -459,11 +461,11 @@ fn object(properties: Value, required: &[&str]) -> Value {
     })
 }
 
-fn string_prop(description: &str) -> Value {
+pub(super) fn string_prop(description: &str) -> Value {
     json!({"type": "string", "description": description})
 }
 
-fn require_str(args: &Value, key: &str) -> Result<String, String> {
+pub(super) fn require_str(args: &Value, key: &str) -> Result<String, String> {
     args.get(key)
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
@@ -495,7 +497,7 @@ fn find_group(reference: &str) -> Result<groups::Group, String> {
         .ok_or_else(|| format!("no group with id or name {reference}"))
 }
 
-fn find(reference: &str) -> Result<crate::core::types::ProfileStatus, String> {
+pub(super) fn find(reference: &str) -> Result<crate::core::types::ProfileStatus, String> {
     let profiles = commands::list_profiles().map_err(detail)?;
     profiles
         .iter()
@@ -514,22 +516,22 @@ fn read_json(path: &std::path::Path) -> Result<Value, String> {
     serde_json::from_str(&text).map_err(|e| format!("{} is not valid JSON: {e}", path.display()))
 }
 
-fn out<T: Serialize>(result: CmdResult<T>) -> Result<Value, String> {
+pub(super) fn out<T: Serialize>(result: CmdResult<T>) -> Result<Value, String> {
     to_value(&result.map_err(detail)?)
 }
 
-fn to_value<T: Serialize>(value: &T) -> Result<Value, String> {
+pub(super) fn to_value<T: Serialize>(value: &T) -> Result<Value, String> {
     serde_json::to_value(value).map_err(|e| e.to_string())
 }
 
-fn path_or_error(result: CmdResult<std::path::PathBuf>) -> Value {
+pub(super) fn path_or_error(result: CmdResult<std::path::PathBuf>) -> Value {
     match result {
         Ok(path) => json!(path.display().to_string()),
         Err(err) => json!({"error": detail(err)}),
     }
 }
 
-fn detail(error: CommandError) -> String {
+pub(super) fn detail(error: CommandError) -> String {
     match error.detail {
         Some(detail) => format!("{}: {detail}", error.kind),
         None => error.kind.to_string(),

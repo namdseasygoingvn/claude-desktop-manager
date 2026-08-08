@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
 use super::rpc::{self, ServerInfo, Tool};
+use super::server;
 
 const MAX_BODY: usize = 1024 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
@@ -28,19 +29,29 @@ pub fn bind(port: u16) -> std::io::Result<(TcpListener, u16)> {
     Ok((listener, bound))
 }
 
-/// Serve on a background thread until the process exits.
+/// Serve on a background thread until `shutdown` is raised. The returned handle is what lets
+/// the caller wait for the listener to be dropped — and therefore the port released.
 ///
 /// Stateless Streamable HTTP: every POST carries one JSON-RPC message and gets one JSON
 /// reply. No server→client stream is ever opened, so GET is a 405.
-pub fn serve(listener: TcpListener, endpoint: Endpoint) {
+pub fn serve(
+    listener: TcpListener,
+    endpoint: Endpoint,
+    shutdown: Arc<AtomicBool>,
+) -> JoinHandle<()> {
     let endpoint = Arc::new(endpoint);
     thread::spawn(move || {
         for stream in listener.incoming() {
+            // Checked before the stream is used: the connection that woke this loop up is the
+            // stop signal itself, not a client with a request.
+            if shutdown.load(Ordering::Relaxed) {
+                break;
+            }
             let Ok(stream) = stream else { break };
             let endpoint = Arc::clone(&endpoint);
             thread::spawn(move || handle(stream, &endpoint));
         }
-    });
+    })
 }
 
 fn handle(mut stream: TcpStream, endpoint: &Endpoint) {
@@ -90,6 +101,7 @@ fn post(stream: &mut TcpStream, endpoint: &Endpoint, body: &[u8]) {
     };
 
     let reply = rpc::dispatch(&message, &endpoint.tools, &endpoint.info);
+    server::record_request();
     // Through `log` rather than straight into the buffer, so request breadcrumbs are stamped
     // and shaped exactly like every other line `get_logs` returns.
     log::info!(target: "mcp", "{}", rpc::label(&message));
@@ -273,6 +285,7 @@ mod tests {
                 }],
                 path: "/mcp",
             },
+            Arc::new(AtomicBool::new(false)),
         );
 
         let initialize = round_trip(port, r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#);

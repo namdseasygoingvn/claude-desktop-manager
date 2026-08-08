@@ -67,6 +67,30 @@ export interface GeneralSettings {
   theme: Theme;
 }
 
+/**
+ * The embedded MCP debug server. Mirrors `mcp::commands::McpStatus`.
+ *
+ * `enabled` is the stored switch and `listening` is whether it took — they disagree whenever
+ * the port could not be claimed, which is exactly the case `error` explains.
+ */
+export interface McpStatus {
+  enabled: boolean;
+  /** What the port field edits. `boundPort` is the one a client can actually reach. */
+  port: number;
+  boundPort: number | null;
+  listening: boolean;
+  url: string | null;
+  error: string | null;
+  /** `CDM_MCP_PORT` when it is set, in which case it, not the switches, is in control. */
+  envOverride: string | null;
+  name: string;
+  version: string;
+  protocolVersion: string;
+  tools: number;
+  requests: number;
+  uptimeSeconds: number | null;
+}
+
 /** The check only looks; installing is a separate, explicit step. */
 export type UpdateOutcome =
   | { status: "upToDate"; version: string }
@@ -201,6 +225,13 @@ export const setLaunchAtLogin = (enabled: boolean) =>
 export const setShowUsageLimits = (enabled: boolean) =>
   call<void>("set_show_usage_limits", { enabled });
 export const setTheme = (theme: Theme) => call<void>("set_theme", { theme });
+// The setters answer with the whole status, so a refused bind reaches the pane on the same
+// round trip that caused it.
+export const getMcpStatus = () => call<McpStatus>("get_mcp_status");
+export const setMcpEnabled = (enabled: boolean) => call<McpStatus>("set_mcp_enabled", { enabled });
+export const setMcpPort = (port: number) => call<McpStatus>("set_mcp_port", { port });
+export const getMcpLogs = (limit: number) => call<string[]>("get_mcp_logs", { limit });
+export const clearMcpLogs = () => call<void>("clear_mcp_logs");
 export const getSidebarWidth = () => call<number | null>("get_sidebar_width");
 export const setSidebarWidth = (width: number) => call<void>("set_sidebar_width", { width });
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
