@@ -2,6 +2,7 @@
 /// function; a re-export carries the function alone and the macro then cannot find them.
 pub mod commands;
 
+mod client_config;
 mod http;
 mod logbuf;
 mod rpc;
@@ -66,7 +67,12 @@ pub fn apply(app: &AppHandle) {
     };
 
     match server::start(port, |bound| endpoint(app, bound)) {
-        Ok(bound) => log::info!("MCP debug server listening on {}", url(bound)),
+        Ok(bound) => {
+            log::info!("MCP debug server listening on {}", url(bound));
+            // From the bound port, not the requested one, so a client is sent where the
+            // server actually is.
+            client_config::sync(SERVER_NAME, bound);
+        }
         Err(err) => log::warn!("MCP debug server could not bind port {port}: {err}"),
     }
 }
