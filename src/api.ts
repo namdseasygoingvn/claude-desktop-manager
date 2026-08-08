@@ -19,11 +19,17 @@ export interface Profile {
   lastUsedAt: string | null;
 }
 
-/** The newest sample in the profile's own usage history. `sampledAt` is epoch milliseconds. */
+/** Why the reset times are missing, when they are. */
+export type UsageSource = "cache" | "noCacheEntry" | "cacheUnreadable";
+
+/** The newest sample in the profile's own usage history. Every timestamp is epoch milliseconds. */
 export interface Usage {
   fiveHour: number | null;
   sevenDay: number | null;
   sampledAt: number;
+  fiveHourResetsAt: number | null;
+  sevenDayResetsAt: number | null;
+  source: UsageSource;
 }
 
 export interface ProfileStatus {

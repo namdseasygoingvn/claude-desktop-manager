@@ -8,3 +8,4 @@ pub mod settings;
 pub mod theme;
 pub mod types;
 pub mod usage;
+mod usage_cache;

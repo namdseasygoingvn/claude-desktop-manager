@@ -56,6 +56,39 @@ export function createdLine(iso: string): string {
   return `Created ${date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}`;
 }
 
+/** Null under a minute, where the wording drops the figures rather than showing a zero. */
+function remaining(ms: number): { hours: number; minutes: number } | null {
+  if (ms < MINUTE) return null;
+  return { hours: Math.floor(ms / HOUR), minutes: Math.floor((ms % HOUR) / MINUTE) };
+}
+
+/** Mirrors the wording of Claude Desktop's own usage popup. */
+export function resetsIn(ms: number): string {
+  const left = remaining(ms);
+  if (!left) return "Resets in under a min";
+  const figures = left.hours ? `${left.hours} hr ${left.minutes} min` : `${left.minutes} min`;
+  return `Resets in ${figures}`;
+}
+
+export function resetsInShort(ms: number): string {
+  const left = remaining(ms);
+  if (!left) return "<1m";
+  return left.hours ? `${left.hours}h ${left.minutes}m` : `${left.minutes}m`;
+}
+
+export function resetsAtDayShort(at: number): string {
+  const date = new Date(at);
+  return `${date.toLocaleDateString(undefined, { weekday: "short" })} ${time(date)}`;
+}
+
+export function resetsAtDay(at: number): string {
+  return `Resets ${resetsAtDayShort(at)}`;
+}
+
+export function staleReading(sampledAt: number): string {
+  return `This reading is out of date — it was taken ${sampleAge(sampledAt)}.`;
+}
+
 const trashRecovery = isMac
   ? "Everything is moved to the Trash, so you can put it back until you empty the Trash."
   : "Everything is moved to the Recycle Bin, so you can restore it until you empty the Recycle Bin.";
@@ -234,6 +267,13 @@ export const t = {
     showHint: `Show each profile's 5-hour and weekly usage in the ${nouns.tray} and in this window.`,
     refresh: "Refresh usage",
     age: sampleAge,
+    resetsIn,
+    resetsInShort,
+    resetsAtDay,
+    resetsAtDayShort,
+    staleReading,
+    noCacheEntry: "No reset times yet — Claude Desktop hasn't recorded usage for this profile.",
+    cacheUnreadable: `No reset times — Claude Desktop's usage data is in a format ${appName} doesn't recognise.`,
   },
 
   orphan: {

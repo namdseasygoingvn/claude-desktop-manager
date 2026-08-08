@@ -27,6 +27,10 @@ sysinfo = "0.39.6"
 unicode-normalization = "0.1.25"
 clap = { version = "4.6.5", features = ["derive"] }
 thiserror = "2.0.19"
+# Claude Desktop's HTTP cache holds the /usage response under its content-encoding: zstd in
+# every sample seen, gzip as the only other encoding worth decoding.
+zstd = "0.13.3"
+flate2 = "1.1.9"
 # Tray group icons: lucide SVG markup from tray_icons.rs rasterized to a menu image.
 usvg = { version = "0.45", default-features = false }
 resvg = { version = "0.45", default-features = false }

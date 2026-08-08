@@ -794,6 +794,7 @@ button {
   grid-column: 1;
   gap: 4px;
   margin-top: 4px;
+  container: usage-row / inline-size;
 }
 
 .usage-meter {
@@ -880,6 +881,44 @@ button {
 
 .usage-meter.is-critical .usage-meter-value {
   color: var(--danger);
+}
+
+.usage-meter-reset {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-bars.is-detail .usage-meter-reset {
+  grid-column: 1 / -1;
+  font-size: 12px;
+}
+
+.usage-bars.is-row .usage-meter:has(.usage-meter-reset) {
+  grid-template-columns: 16px minmax(0, 1fr) 30px auto;
+}
+
+.usage-bars.is-row .usage-meter-reset {
+  grid-area: 1 / 4;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* The sidebar drags down to a width the countdown cannot share with the bar. Rather than
+   truncate it or wrap it under the track, a narrow row drops it and gives the width back. */
+@container usage-row (max-width: 170px) {
+  .usage-bars.is-row .usage-meter:has(.usage-meter-reset) {
+    grid-template-columns: 16px minmax(0, 1fr) 30px;
+  }
+
+  .usage-bars.is-row .usage-meter-reset {
+    display: none;
+  }
+}
+
+.usage-note {
+  margin: 0;
+  font-size: 12px;
 }
 
 .detail-actions {

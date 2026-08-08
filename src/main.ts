@@ -85,6 +85,7 @@ import {
 const LAUNCH_FEEDBACK_MS = 3000;
 const UPDATE_POLL_MS = 60 * 60 * 1000;
 const MCP_POLL_MS = 1000;
+const USAGE_POLL_MS = 60 * 1000;
 
 /** A tail, not the whole buffer: the pane is a few inches tall and repaints every second. */
 const MCP_LOG_LINES = 200;
@@ -227,6 +228,7 @@ function activePane(): HTMLElement {
 function selectTab(tab: TabId): void {
   state.tab = tab;
   syncMcpPolling();
+  syncUsagePolling();
   render();
   root.querySelector<HTMLElement>(`[data-focus-key="tab-${tab}"]`)?.focus();
 }
@@ -372,19 +374,23 @@ async function loadMcp(): Promise<void> {
   render();
 }
 
-let mcpTimer: number | null = null;
+/** Only while its tab is on screen: nothing behind another one is worth a wakeup. */
+function tabPoller(tab: TabId, everyMs: number, tick: () => void): () => void {
+  let timer: number | null = null;
+  return () => {
+    const wanted = state.tab === tab;
+    if (wanted === (timer !== null)) return;
 
-/** Only while the section is on screen: nothing here is worth a wakeup a second when it is not. */
-function syncMcpPolling(): void {
-  const wanted = state.tab === "general";
-  if (wanted === (mcpTimer !== null)) return;
-
-  if (mcpTimer !== null) {
-    window.clearInterval(mcpTimer);
-    mcpTimer = null;
-  }
-  if (wanted) mcpTimer = window.setInterval(() => void pollMcp(), MCP_POLL_MS);
+    if (timer !== null) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+    if (wanted) timer = window.setInterval(tick, everyMs);
+  };
 }
+
+const syncMcpPolling = tabPoller("general", MCP_POLL_MS, () => void pollMcp());
+const syncUsagePolling = tabPoller("profiles", USAGE_POLL_MS, () => void pollUsage());
 
 /**
  * Repaints in place rather than re-rendering: the counters and the log move on their own, and
@@ -400,6 +406,35 @@ async function pollMcp(): Promise<void> {
   if (status) state.mcp = status;
   if (logs) state.mcpLogs = logs;
   if (state.mcp) paintMcp(root, state.mcp, state.mcpLogs);
+}
+
+/**
+ * Each countdown is read off the clock as it renders, so it rots where it sits. The render runs
+ * whether or not the read landed: a stale number still counts down, and a failure nobody asked
+ * for has no business putting up the pane of error `state.fatal` would.
+ */
+async function pollUsage(): Promise<void> {
+  if (!undisturbed()) return;
+  const profiles = await listProfiles().catch(() => null);
+  if (profiles) state.profiles = profiles;
+  render();
+}
+
+/**
+ * A re-render is only invisible when nothing is mid-gesture: it would swap a sheet's invoker out
+ * from under it, or take away the row a drag started from — `.is-dragging` marks both the row
+ * grip and the sidebar's width handle. A launch has its own refresh coming, and with the meters
+ * switched off there is nothing to keep honest.
+ */
+function undisturbed(): boolean {
+  return (
+    !document.hidden &&
+    !state.fatal &&
+    state.settings.showUsageLimits &&
+    state.launching.size === 0 &&
+    !isDialogOpen() &&
+    !root.querySelector(".is-dragging")
+  );
 }
 
 /** The box the user just clicked already shows the new value; a refusal reads the truth back. */
@@ -833,6 +868,7 @@ onUpdateProgress(onProgress);
 
 pollForUpdate();
 setInterval(pollForUpdate, UPDATE_POLL_MS);
+syncUsagePolling();
 
 void refresh().then(() => {
   focusEntry();

@@ -1,4 +1,5 @@
-//! Plan usage percentages, read from the history file Claude Desktop leaves in a profile folder.
+//! Plan usage, preferring Claude Desktop's cached `/usage` response and falling back to the
+//! history file it leaves in a profile folder.
 
 use std::collections::HashMap;
 use std::fs;
@@ -6,6 +7,8 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use super::usage_cache::{self, CachedUsage, Miss};
 
 const USAGE_FILE: &str = "plan-usage-history.json";
 const FIVE_HOUR: &str = "fh";
@@ -17,6 +20,28 @@ pub struct Usage {
     pub five_hour: Option<u8>,
     pub seven_day: Option<u8>,
     pub sampled_at: i64,
+    pub five_hour_resets_at: Option<i64>,
+    pub seven_day_resets_at: Option<i64>,
+    pub source: UsageSource,
+}
+
+/// Which of the two on-disk records the figures came from, and so whether reset times were
+/// available at all: the history file records percentages without their clocks.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UsageSource {
+    Cache,
+    NoCacheEntry,
+    CacheUnreadable,
+}
+
+impl From<Miss> for UsageSource {
+    fn from(miss: Miss) -> Self {
+        match miss {
+            Miss::NoEntry => UsageSource::NoCacheEntry,
+            Miss::Unreadable => UsageSource::CacheUnreadable,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -36,10 +61,28 @@ struct Sample {
     legacy: HashMap<String, Value>,
 }
 
-/// None when the profile has no readable usage history. Claude Desktop writes this file only
-/// while a profile runs, so every failure is ordinary and none of them is worth an error: the
-/// numbers are decoration on a profile list that has to render regardless.
+/// None when neither record is readable. Claude Desktop writes both only while a profile runs,
+/// so every failure is ordinary and none of them is worth an error: the numbers are decoration
+/// on a profile list that has to render regardless.
 pub fn read(profile_dir: &Path) -> Option<Usage> {
+    match usage_cache::read(profile_dir) {
+        Ok(cached) => Some(from_cache(cached)),
+        Err(miss) => from_history(profile_dir, miss.into()),
+    }
+}
+
+fn from_cache(cached: CachedUsage) -> Usage {
+    Usage {
+        five_hour: cached.five_hour.percent,
+        seven_day: cached.seven_day.percent,
+        sampled_at: cached.sampled_at,
+        five_hour_resets_at: cached.five_hour.resets_at,
+        seven_day_resets_at: cached.seven_day.resets_at,
+        source: UsageSource::Cache,
+    }
+}
+
+fn from_history(profile_dir: &Path, source: UsageSource) -> Option<Usage> {
     let bytes = fs::read(profile_dir.join(USAGE_FILE)).ok()?;
     let history: History = serde_json::from_slice(&bytes).ok()?;
     let sample = history.samples.into_iter().max_by_key(|s| s.t)?;
@@ -54,6 +97,9 @@ pub fn read(profile_dir: &Path) -> Option<Usage> {
         five_hour: percent(percentages.get(FIVE_HOUR)),
         seven_day: percent(percentages.get(SEVEN_DAY)),
         sampled_at: sample.t,
+        five_hour_resets_at: None,
+        seven_day_resets_at: None,
+        source,
     })
 }
 
@@ -133,8 +179,67 @@ mod tests {
             five_hour: Some(21),
             seven_day: None,
             sampled_at: 5,
+            five_hour_resets_at: Some(7),
+            seven_day_resets_at: None,
+            source: UsageSource::Cache,
         };
         let json = serde_json::to_string(&usage).unwrap();
-        assert_eq!(json, r#"{"fiveHour":21,"sevenDay":null,"sampledAt":5}"#);
+        assert_eq!(
+            json,
+            r#"{"fiveHour":21,"sevenDay":null,"sampledAt":5,"fiveHourResetsAt":7,"sevenDayResetsAt":null,"source":"cache"}"#
+        );
+    }
+
+    #[test]
+    fn the_serialized_sources_are_camel_case() {
+        let sources = [
+            UsageSource::Cache,
+            UsageSource::NoCacheEntry,
+            UsageSource::CacheUnreadable,
+        ];
+        let json = serde_json::to_string(&sources).unwrap();
+        assert_eq!(json, r#"["cache","noCacheEntry","cacheUnreadable"]"#);
+    }
+
+    #[test]
+    fn a_profile_with_no_cache_falls_back_to_its_history() {
+        let dir = profile_dir(r#"{"version":2,"samples":[{"t":1,"u":{"fh":21,"sd":4}}]}"#);
+        let usage = read(dir.path()).unwrap();
+        assert_eq!(usage.source, UsageSource::NoCacheEntry);
+        assert_eq!(usage.five_hour_resets_at, None);
+        assert_eq!(usage.seven_day_resets_at, None);
+    }
+
+    #[test]
+    fn a_cached_response_beats_the_history_file() {
+        let dir = profile_dir(r#"{"version":2,"samples":[{"t":1,"u":{"fh":90,"sd":90}}]}"#);
+        usage_cache::fixture::entry(
+            dir.path(),
+            "a",
+            br#"{"five_hour":{"utilization":8.0,"resets_at":"2026-08-08T14:09:59.822762+00:00"},
+                 "seven_day":{"utilization":27.0,"resets_at":null}}"#,
+        );
+        let usage = read(dir.path()).unwrap();
+        assert_eq!(usage.source, UsageSource::Cache);
+        assert_eq!(usage.five_hour, Some(8));
+        assert_eq!(usage.seven_day, Some(27));
+        assert_eq!(usage.five_hour_resets_at, Some(1_786_198_199_822));
+        assert_eq!(usage.seven_day_resets_at, None);
+    }
+
+    #[test]
+    fn a_cache_entry_that_will_not_decode_falls_back_to_the_history() {
+        let dir = profile_dir(r#"{"version":2,"samples":[{"t":1,"u":{"fh":21,"sd":4}}]}"#);
+        usage_cache::fixture::entry(dir.path(), "a", &[0x00, 0x01, 0x02, 0x03]);
+        let usage = read(dir.path()).unwrap();
+        assert_eq!(usage.source, UsageSource::CacheUnreadable);
+        assert_eq!(usage.five_hour, Some(21));
+    }
+
+    #[test]
+    fn neither_record_readable_is_no_usage() {
+        let dir = tempfile::tempdir().unwrap();
+        usage_cache::fixture::entry(dir.path(), "a", &[0x00, 0x01, 0x02, 0x03]);
+        assert!(read(dir.path()).is_none());
     }
 }
