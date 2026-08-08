@@ -201,6 +201,8 @@ export const setLaunchAtLogin = (enabled: boolean) =>
 export const setShowUsageLimits = (enabled: boolean) =>
   call<void>("set_show_usage_limits", { enabled });
 export const setTheme = (theme: Theme) => call<void>("set_theme", { theme });
+export const getSidebarWidth = () => call<number | null>("get_sidebar_width");
+export const setSidebarWidth = (width: number) => call<void>("set_sidebar_width", { width });
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
 export const installUpdate = () => call<string>("install_update");
 export const restartApp = () => call<void>("restart_app");

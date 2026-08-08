@@ -3,6 +3,7 @@ import { attachDrag } from "./drag";
 import { GripVertical, groupIcon, icon } from "./icons";
 import { renderGroupHeader } from "./groups";
 import { neighbourMove, reorderStep } from "./reorder";
+import { resizeHandle } from "./resize";
 import { runningLabel } from "./running";
 import { lastUsedShort, t } from "./strings";
 import { usageBars, usageSummary } from "./usage";
@@ -89,7 +90,7 @@ export function renderSidebar(props: ListProps): HTMLElement {
     sidebar.append(filter);
   }
 
-  sidebar.append(renderList(props));
+  sidebar.append(renderList(props), resizeHandle());
   return sidebar;
 }
 

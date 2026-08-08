@@ -73,6 +73,8 @@ fn run_manager() {
             commands::set_show_usage_limits,
             commands::set_launch_at_login,
             commands::set_theme,
+            commands::get_sidebar_width,
+            commands::set_sidebar_width,
             commands::list_groups,
             commands::create_group,
             commands::rename_group,

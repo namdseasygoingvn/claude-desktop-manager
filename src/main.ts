@@ -58,6 +58,7 @@ import { filterProfiles, ordered, renderSidebar } from "./views/list";
 import { openMenu, type MenuEntry } from "./views/menu";
 import { matches, platform, shortcuts } from "./views/platform";
 import { openRenameSheet } from "./views/rename";
+import { restoreSidebarWidth } from "./views/resize";
 import { t } from "./views/strings";
 import { renderTabs, type TabId } from "./views/tabs";
 import { applyTheme } from "./views/theme";
@@ -702,5 +703,11 @@ setInterval(pollForUpdate, UPDATE_POLL_MS);
 
 void refresh().then(() => {
   focusEntry();
-  return Promise.all([discover(), loadVersion(), loadSettings(), warnIfTranslated()]);
+  return Promise.all([
+    discover(),
+    loadVersion(),
+    loadSettings(),
+    restoreSidebarWidth(),
+    warnIfTranslated(),
+  ]);
 });

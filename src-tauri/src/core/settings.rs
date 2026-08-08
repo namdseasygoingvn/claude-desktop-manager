@@ -18,6 +18,8 @@ pub struct Settings {
     pub open_preferences_at_start: bool,
     pub show_usage_limits: bool,
     pub theme: Theme,
+    /// None until the divider is dragged, so the stylesheet owns the starting width alone.
+    pub sidebar_width: Option<u32>,
 }
 
 impl Default for Settings {
@@ -26,6 +28,7 @@ impl Default for Settings {
             open_preferences_at_start: true,
             show_usage_limits: true,
             theme: Theme::default(),
+            sidebar_width: None,
         }
     }
 }
@@ -72,11 +75,18 @@ mod tests {
             open_preferences_at_start: false,
             show_usage_limits: false,
             theme: Theme::Dark,
+            sidebar_width: Some(320),
         };
         let json = serde_json::to_string(&settings).unwrap();
         assert_eq!(
             json,
-            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark"}"#
+            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark","sidebarWidth":320}"#
         );
+    }
+
+    #[test]
+    fn a_file_from_before_the_divider_existed_has_no_width() {
+        let parsed: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
+        assert_eq!(parsed.sidebar_width, None);
     }
 }

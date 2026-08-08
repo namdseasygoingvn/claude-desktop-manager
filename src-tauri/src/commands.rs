@@ -242,6 +242,19 @@ pub fn set_launch_at_login(app: AppHandle, enabled: bool) -> CmdResult<()> {
     outcome.map_err(|e| CdmError::Io(e.to_string()).into())
 }
 
+/// Not a General tab preference: the profile list's own width, kept beside the rest.
+#[tauri::command]
+pub fn get_sidebar_width() -> CmdResult<Option<u32>> {
+    Ok(settings::load().sidebar_width)
+}
+
+#[tauri::command]
+pub fn set_sidebar_width(width: u32) -> CmdResult<()> {
+    let mut current = settings::load();
+    current.sidebar_width = Some(width);
+    Ok(settings::save(&current)?)
+}
+
 #[tauri::command]
 pub fn doctor(app: AppHandle) -> CmdResult<DoctorReport> {
     let (binary, binary_error) = match platform::current().find_claude_binary() {
