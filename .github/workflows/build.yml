@@ -18,7 +18,9 @@ env:
 
     **macOS:** download the `.dmg` for your chip — `aarch64` for Apple Silicon, `x64` for Intel.
     Open it, drag the app to Applications.
-    First open: macOS blocks it (unsigned) — right-click the app → **Open → Open**.
+    First open: macOS blocks it — clear the download flag with
+    `xattr -dr com.apple.quarantine "/Applications/Claude Desktop Manager.app"`,
+    or allow it once in **System Settings → Privacy & Security → Open Anyway**.
 
     **Windows (x64):** download the `-setup.exe` and run it.
     First run: SmartScreen shows "Windows protected your PC" (unsigned) — **More info → Run anyway**.
@@ -168,6 +170,19 @@ jobs:
           tagName: v${{ needs.bump.outputs.version }}
           releaseBody: ${{ env.RELEASE_BODY }}
           args: --target ${{ matrix.target }}
+
+      # With no identity configured the bundler seals nothing, and on arm64 that leaves
+      # ld's automatic linker-signed signature on the executable with no sealed resources
+      # around it — a mismatch Gatekeeper reports as "damaged", not "unsigned", so the
+      # usual right-click → Open cannot get past it and the DMG is uninstallable. The `-`
+      # identity in tauri.conf.json seals the bundle; this fails the job if it stops
+      # happening, which leaves the release a draft rather than shipping that DMG.
+      - name: Check the macOS bundle is sealed
+        if: runner.os == 'macOS'
+        run: |
+          APP=$(node -p "require('./src-tauri/tauri.conf.json').productName")
+          codesign --verify --strict --verbose=2 \
+            "src-tauri/target/${{ matrix.target }}/release/bundle/macos/$APP.app"
 
   # Handed a releaseId, tauri-action uploads but never publishes, so promoting the
   # draft is this job's whole purpose. `needs` requires every build to have

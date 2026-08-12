@@ -38,6 +38,9 @@
       "dmg",
       "nsis"
     ],
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "windows": {
       "nsis": {
         "installMode": "currentUser"
