@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuBuilder, MenuId, MenuItem, MenuItemBuilder, Submenu};
+use tauri::menu::{
+    IconMenuItem, IsMenuItem, Menu, MenuBuilder, MenuId, MenuItem, MenuItemBuilder, MenuItemKind,
+};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, Window, WindowEvent, Wry};
 
@@ -24,6 +26,8 @@ const MENU_ICON_SIZE: u32 = 36;
 
 const LABEL_NO_PROFILES: &str = "No profiles yet";
 const LABEL_GROUP_EMPTY: &str = "No profiles in this group";
+/// Prefixes a group member's row so it reads as visually inside the (now flat) group section.
+const LABEL_GROUP_INDENT: &str = "   ";
 const LABEL_BINARY_MISSING: &str = "\u{26a0} Claude Desktop not found";
 const LABEL_LOCATE: &str = "Locate Claude Desktop\u{2026}";
 const LABEL_REGISTRY_BROKEN: &str = "\u{26a0} Profile list unavailable";
@@ -165,7 +169,7 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
     let status = status_items(app, binary_ok)?;
     // Groups cannot break the tray: one that cannot be read simply does not render.
     let groups = groups::list().unwrap_or_default().groups;
-    let group_menus = group_items(app, &groups, &profiles, binary_ok, show_usage)?;
+    let sections = group_sections(app, &groups, &profiles, binary_ok, show_usage)?;
     let rows = ungrouped_items(app, &groups, &profiles, binary_ok, show_usage)?;
     let preferences = preferences_item(app)?;
 
@@ -176,8 +180,15 @@ fn healthy_menu(app: &AppHandle, mut profiles: Vec<ProfileStatus>) -> tauri::Res
     if !status.is_empty() {
         b = b.separator();
     }
-    for submenu in &group_menus {
-        b = b.item(submenu);
+    // No separator after the last section when nothing follows it: the closing separator
+    // before Preferences is already unconditional, and macOS renders both.
+    for (index, section) in sections.iter().enumerate() {
+        for entry in section {
+            b = b.item(entry);
+        }
+        if index + 1 < sections.len() || !rows.is_empty() {
+            b = b.separator();
+        }
     }
     for entry in &rows {
         b = b.item(entry);
@@ -230,67 +241,81 @@ fn status_items(app: &AppHandle, binary_ok: bool) -> tauri::Result<Vec<MenuItem<
     ])
 }
 
-fn group_items(
+fn group_sections(
     app: &AppHandle,
     groups: &[Group],
     profiles: &[ProfileStatus],
     enabled: bool,
     show_usage: bool,
-) -> tauri::Result<Vec<Submenu<Wry>>> {
+) -> tauri::Result<Vec<Vec<MenuItemKind<Wry>>>> {
     groups
         .iter()
-        .map(|group| group_menu(app, group, profiles, enabled, show_usage))
+        .map(|group| group_section(app, group, profiles, enabled, show_usage))
         .collect()
 }
 
-fn group_menu(
+/// A header row followed by that group's members, flat (no submenu). `enabled` governs whether
+/// the launch rows are clickable; the header never is.
+fn group_section(
     app: &AppHandle,
     group: &Group,
     profiles: &[ProfileStatus],
     enabled: bool,
     show_usage: bool,
-) -> tauri::Result<Submenu<Wry>> {
-    // Emoji ride in the label (native color text on every platform); lucide symbols become
-    // menu images. The label is what the screen reader and Windows see.
-    let label = match &group.icon {
-        Some(GroupIcon::Emoji(emoji)) if !emoji.is_empty() => format!("{emoji} {}", group.name),
-        _ => group.name.clone(),
-    };
-    let submenu = Submenu::with_id_and_icon(
-        app,
-        format!("{}:{}", id::GROUP_PREFIX, group.id),
-        label,
-        true,
-        group_image(group),
-    )?;
-
+) -> tauri::Result<Vec<MenuItemKind<Wry>>> {
     let members: Vec<&ProfileStatus> = profiles
         .iter()
         .filter(|status| group.profile_ids.iter().any(|id| id == &status.profile.id))
         .collect();
 
+    let mut items = vec![group_header(app, group)?];
+
     if members.is_empty() {
-        submenu.append(&item(
-            app,
-            format!("{}:{}:empty", id::GROUP_PREFIX, group.id),
-            LABEL_GROUP_EMPTY,
-            false,
-        )?)?;
+        items.push(
+            item(
+                app,
+                format!("{}:{}:empty", id::GROUP_PREFIX, group.id),
+                format!("{LABEL_GROUP_INDENT}{LABEL_GROUP_EMPTY}"),
+                false,
+            )?
+            .kind(),
+        );
     } else {
         for member in members.iter().take(MAX_ROWS) {
             let row_id = format!("{}{}", id::LAUNCH_PREFIX, member.profile.id);
-            submenu.append(&item(app, row_id, row_label(member, show_usage), enabled)?)?;
+            let label = format!("{LABEL_GROUP_INDENT}{}", row_label(member, show_usage));
+            items.push(item(app, row_id, label, enabled)?.kind());
         }
         if members.len() > MAX_ROWS {
-            submenu.append(&item(
-                app,
-                format!("{}:{}:more", id::GROUP_PREFIX, group.id),
-                LABEL_MORE,
-                true,
-            )?)?;
+            items.push(
+                item(
+                    app,
+                    format!("{}:{}:more", id::GROUP_PREFIX, group.id),
+                    format!("{LABEL_GROUP_INDENT}{LABEL_MORE}"),
+                    true,
+                )?
+                .kind(),
+            );
         }
     }
-    Ok(submenu)
+    Ok(items)
+}
+
+/// Disabled section header standing in for the old submenu title, same label/icon logic. Emoji
+/// ride in the label (native color text on every platform); lucide symbols become menu images.
+/// The label is what the screen reader and Windows see.
+fn group_header(app: &AppHandle, group: &Group) -> tauri::Result<MenuItemKind<Wry>> {
+    let label = match &group.icon {
+        Some(GroupIcon::Emoji(emoji)) if !emoji.is_empty() => format!("{emoji} {}", group.name),
+        _ => group.name.clone(),
+    };
+    let id = format!("{}:{}", id::GROUP_PREFIX, group.id);
+    match group_image(group) {
+        Some(icon) => {
+            Ok(IconMenuItem::with_id(app, id, label, false, Some(icon), None::<&str>)?.kind())
+        }
+        None => Ok(item(app, id, label, false)?.kind()),
+    }
 }
 
 fn ungrouped_items(
@@ -372,7 +397,7 @@ fn row_label(p: &ProfileStatus, show_usage: bool) -> String {
 /// never reported is dropped rather than padded with a placeholder.
 fn usage_suffix(usage: Option<&Usage>) -> Option<String> {
     let usage = usage?;
-    let shown: Vec<String> = [usage.five_hour, usage.seven_day]
+    let shown: Vec<String> = [usage.five_hour, usage.seven_day, usage.seven_day_scoped]
         .into_iter()
         .flatten()
         .map(|percent| format!("{percent}{LABEL_USAGE_UNIT}"))
