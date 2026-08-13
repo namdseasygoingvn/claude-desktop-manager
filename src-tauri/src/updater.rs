@@ -105,8 +105,30 @@ pub async fn install_update(app: AppHandle) -> CmdResult<String> {
 
 /// Profiles are spawned detached, so they outlive this. The single-instance handle must go first:
 /// on Windows the relaunch is a fresh process, and it would hand off to this dying one and exit.
+/// On macOS a raw exec of the just-installed bundle fails AMFI validation because LaunchServices
+/// has not assessed the new content yet, so the relaunch there goes through `open(1)` instead.
 #[tauri::command]
-pub fn restart_app(app: AppHandle) {
+pub fn restart_app(app: AppHandle) -> CmdResult<()> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(bundle) = macos_bundle_path() {
+            std::process::Command::new("/usr/bin/open")
+                .arg("-n")
+                .arg(bundle)
+                .spawn()
+                .map_err(|e| failed(e.to_string()))?;
+            tauri_plugin_single_instance::destroy(&app);
+            app.exit(0);
+            return Ok(());
+        }
+    }
     tauri_plugin_single_instance::destroy(&app);
     app.restart();
+}
+
+#[cfg(target_os = "macos")]
+fn macos_bundle_path() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let bundle = exe.ancestors().nth(3)?;
+    (bundle.extension()? == "app").then(|| bundle.to_path_buf())
 }
