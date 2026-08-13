@@ -19,14 +19,18 @@ const SEVEN_DAY: &str = "sd";
 pub struct Usage {
     pub five_hour: Option<u8>,
     pub seven_day: Option<u8>,
+    pub seven_day_scoped: Option<u8>,
     pub sampled_at: i64,
     pub five_hour_resets_at: Option<i64>,
     pub seven_day_resets_at: Option<i64>,
+    pub seven_day_scoped_resets_at: Option<i64>,
+    pub seven_day_scoped_model: Option<String>,
     pub source: UsageSource,
 }
 
 /// Which of the two on-disk records the figures came from, and so whether reset times were
-/// available at all: the history file records percentages without their clocks.
+/// available at all: the history file records the plain percentages without their clocks, and
+/// never the per-model scoped limit at all.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum UsageSource {
@@ -72,12 +76,20 @@ pub fn read(profile_dir: &Path) -> Option<Usage> {
 }
 
 fn from_cache(cached: CachedUsage) -> Usage {
+    let (seven_day_scoped, seven_day_scoped_resets_at, seven_day_scoped_model) =
+        match cached.seven_day_scoped {
+            Some(scoped) => (Some(scoped.percent), scoped.resets_at, Some(scoped.model)),
+            None => (None, None, None),
+        };
     Usage {
         five_hour: cached.five_hour.percent,
         seven_day: cached.seven_day.percent,
+        seven_day_scoped,
         sampled_at: cached.sampled_at,
         five_hour_resets_at: cached.five_hour.resets_at,
         seven_day_resets_at: cached.seven_day.resets_at,
+        seven_day_scoped_resets_at,
+        seven_day_scoped_model,
         source: UsageSource::Cache,
     }
 }
@@ -96,9 +108,12 @@ fn from_history(profile_dir: &Path, source: UsageSource) -> Option<Usage> {
     Some(Usage {
         five_hour: percent(percentages.get(FIVE_HOUR)),
         seven_day: percent(percentages.get(SEVEN_DAY)),
+        seven_day_scoped: None,
         sampled_at: sample.t,
         five_hour_resets_at: None,
         seven_day_resets_at: None,
+        seven_day_scoped_resets_at: None,
+        seven_day_scoped_model: None,
         source,
     })
 }
@@ -178,15 +193,18 @@ mod tests {
         let usage = Usage {
             five_hour: Some(21),
             seven_day: None,
+            seven_day_scoped: Some(9),
             sampled_at: 5,
             five_hour_resets_at: Some(7),
             seven_day_resets_at: None,
+            seven_day_scoped_resets_at: Some(11),
+            seven_day_scoped_model: Some("Fable".to_string()),
             source: UsageSource::Cache,
         };
         let json = serde_json::to_string(&usage).unwrap();
         assert_eq!(
             json,
-            r#"{"fiveHour":21,"sevenDay":null,"sampledAt":5,"fiveHourResetsAt":7,"sevenDayResetsAt":null,"source":"cache"}"#
+            r#"{"fiveHour":21,"sevenDay":null,"sevenDayScoped":9,"sampledAt":5,"fiveHourResetsAt":7,"sevenDayResetsAt":null,"sevenDayScopedResetsAt":11,"sevenDayScopedModel":"Fable","source":"cache"}"#
         );
     }
 
@@ -208,6 +226,9 @@ mod tests {
         assert_eq!(usage.source, UsageSource::NoCacheEntry);
         assert_eq!(usage.five_hour_resets_at, None);
         assert_eq!(usage.seven_day_resets_at, None);
+        assert_eq!(usage.seven_day_scoped, None);
+        assert_eq!(usage.seven_day_scoped_resets_at, None);
+        assert_eq!(usage.seven_day_scoped_model, None);
     }
 
     #[test]
@@ -225,6 +246,22 @@ mod tests {
         assert_eq!(usage.seven_day, Some(27));
         assert_eq!(usage.five_hour_resets_at, Some(1_786_198_199_822));
         assert_eq!(usage.seven_day_resets_at, None);
+    }
+
+    #[test]
+    fn a_weekly_scoped_limit_in_the_cache_surfaces_its_model_and_percent() {
+        let dir = profile_dir(r#"{"version":2,"samples":[{"t":1,"u":{"fh":90,"sd":90}}]}"#);
+        usage_cache::fixture::entry(
+            dir.path(),
+            "a",
+            br#"{"five_hour":{"utilization":8.0,"resets_at":"2026-08-08T14:09:59.822762+00:00"},
+                 "seven_day":{"utilization":27.0,"resets_at":null},
+                 "limits":[{"kind":"weekly_scoped","group":"weekly","percent":9,"severity":"normal","resets_at":"2026-08-19T11:59:59.750842+00:00","scope":{"model":{"id":null,"display_name":"Fable"},"surface":null},"is_active":false}]}"#,
+        );
+        let usage = read(dir.path()).unwrap();
+        assert_eq!(usage.seven_day_scoped, Some(9));
+        assert_eq!(usage.seven_day_scoped_model, Some("Fable".to_string()));
+        assert!(usage.seven_day_scoped_resets_at.is_some());
     }
 
     #[test]

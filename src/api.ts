@@ -26,9 +26,12 @@ export type UsageSource = "cache" | "noCacheEntry" | "cacheUnreadable";
 export interface Usage {
   fiveHour: number | null;
   sevenDay: number | null;
+  sevenDayScoped: number | null;
   sampledAt: number;
   fiveHourResetsAt: number | null;
   sevenDayResetsAt: number | null;
+  sevenDayScopedResetsAt: number | null;
+  sevenDayScopedModel: string | null;
   source: UsageSource;
 }
 

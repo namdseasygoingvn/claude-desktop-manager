@@ -20,7 +20,7 @@ interface Limit {
 
 /** Null when there is nothing worth showing — the caller then renders no usage at all. */
 export function usageBars(usage: Usage, variant: Variant): HTMLElement | null {
-  const limits = reported(usage);
+  const limits = reported(usage, variant);
   if (limits.length === 0) return null;
   const now = Date.now();
 
@@ -37,14 +37,15 @@ export function usageBars(usage: Usage, variant: Variant): HTMLElement | null {
   return block;
 }
 
+/** The sidebar row is the only caller, so this always summarizes the "row" variant. */
 export function usageSummary(usage: Usage): string | null {
-  const limits = reported(usage);
+  const limits = reported(usage, "row");
   if (limits.length === 0) return null;
   return limits.map((limit) => `${limit.name} ${reading(limit.percent)}`).join(", ");
 }
 
-function reported(usage: Usage): Limit[] {
-  return [
+function reported(usage: Usage, variant: Variant): Limit[] {
+  const limits = [
     {
       name: t.usage.fiveHour,
       short: t.usage.fiveHourShort,
@@ -59,7 +60,18 @@ function reported(usage: Usage): Limit[] {
       resetsAt: usage.sevenDayResetsAt,
       resetFormat: dayUnlessSoon,
     },
-  ].filter((limit): limit is Limit => limit.percent !== null);
+  ];
+  // The sidebar row's 16px label column can't fit a model name.
+  if (variant === "detail" && usage.sevenDayScopedModel !== null) {
+    limits.push({
+      name: t.usage.weeklyScoped(usage.sevenDayScopedModel),
+      short: usage.sevenDayScopedModel,
+      percent: usage.sevenDayScoped,
+      resetsAt: usage.sevenDayScopedResetsAt,
+      resetFormat: dayUnlessSoon,
+    });
+  }
+  return limits.filter((limit): limit is Limit => limit.percent !== null);
 }
 
 function countdown(resetsAt: number, now: number, variant: Variant): string {

@@ -261,6 +261,7 @@ export const t = {
   usage: {
     fiveHour: "5-hour limit",
     weekly: "Weekly · all models",
+    weeklyScoped: (model: string) => `Weekly · ${model}`,
     fiveHourShort: "5h",
     weeklyShort: "7d",
     show: "Show usage limits",

@@ -28,9 +28,17 @@ pub struct Limit {
 }
 
 #[derive(Debug)]
+pub struct ScopedLimit {
+    pub model: String,
+    pub percent: u8,
+    pub resets_at: Option<i64>,
+}
+
+#[derive(Debug)]
 pub struct CachedUsage {
     pub five_hour: Limit,
     pub seven_day: Limit,
+    pub seven_day_scoped: Option<ScopedLimit>,
     pub sampled_at: i64,
 }
 
@@ -160,6 +168,7 @@ fn cached(response: Response, modified: i64) -> CachedUsage {
     CachedUsage {
         five_hour: response.five_hour.into(),
         seven_day: response.seven_day.into(),
+        seven_day_scoped: scoped_limit(&response.limits),
         sampled_at: modified,
     }
 }
@@ -168,12 +177,50 @@ fn cached(response: Response, modified: i64) -> CachedUsage {
 struct Response {
     five_hour: Option<Window>,
     seven_day: Option<Window>,
+    #[serde(default)]
+    limits: Vec<LimitEntry>,
 }
 
 #[derive(Deserialize)]
 struct Window {
     utilization: Option<f64>,
     resets_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct LimitEntry {
+    kind: String,
+    percent: Option<i64>,
+    resets_at: Option<String>,
+    scope: Option<Scope>,
+}
+
+#[derive(Deserialize)]
+struct Scope {
+    model: Option<ModelScope>,
+}
+
+#[derive(Deserialize)]
+struct ModelScope {
+    display_name: Option<String>,
+}
+
+/// `weekly_scoped` is the per-model limit (Fable's weekly cap, say) layered on top of the
+/// account-wide `weekly_all`; the first one with a name and an in-range percent wins, and one
+/// missing either is as good as not in the array.
+fn scoped_limit(limits: &[LimitEntry]) -> Option<ScopedLimit> {
+    limits.iter().find_map(|limit| {
+        if limit.kind != "weekly_scoped" {
+            return None;
+        }
+        let model = limit.scope.as_ref()?.model.as_ref()?.display_name.clone()?;
+        let percent = u8::try_from(limit.percent?).ok()?;
+        Some(ScopedLimit {
+            model,
+            percent,
+            resets_at: limit.resets_at.as_deref().and_then(epoch_ms),
+        })
+    })
 }
 
 impl From<Option<Window>> for Limit {
@@ -341,6 +388,52 @@ mod tests {
         assert_eq!(usage.five_hour.percent, Some(0));
         assert_eq!(usage.five_hour.resets_at, None);
         assert_eq!(usage.seven_day.percent, None);
+    }
+
+    #[test]
+    fn a_body_without_limits_has_no_scoped_limit() {
+        let dir = profile_dir();
+        fixture::entry(dir.path(), "a", RESPONSE);
+        assert!(read(dir.path()).unwrap().seven_day_scoped.is_none());
+    }
+
+    #[test]
+    fn a_weekly_scoped_limit_carries_its_model_and_reset() {
+        const RESPONSE: &[u8] = br#"{"five_hour":{"utilization":44.0,"resets_at":"2026-08-13T06:50:00.750655+00:00"},
+            "seven_day":{"utilization":6.0,"resets_at":"2026-08-19T12:00:00.750674+00:00"},
+            "limits":[
+             {"kind":"session","group":"session","percent":44,"severity":"normal","resets_at":"2026-08-13T06:50:00.750655+00:00","scope":null,"is_active":true},
+             {"kind":"weekly_all","group":"weekly","percent":6,"severity":"normal","resets_at":"2026-08-19T12:00:00.750674+00:00","scope":null,"is_active":false},
+             {"kind":"weekly_scoped","group":"weekly","percent":9,"severity":"normal","resets_at":"2026-08-19T11:59:59.750842+00:00","scope":{"model":{"id":null,"display_name":"Fable"},"surface":null},"is_active":false}
+            ]}"#;
+        let dir = profile_dir();
+        fixture::entry(dir.path(), "a", RESPONSE);
+        let scoped = read(dir.path()).unwrap().seven_day_scoped.unwrap();
+        assert_eq!(scoped.model, "Fable");
+        assert_eq!(scoped.percent, 9);
+        assert_eq!(scoped.resets_at, Some(1_787_140_799_750));
+    }
+
+    #[test]
+    fn a_weekly_scoped_limit_missing_its_name_is_none() {
+        let dir = profile_dir();
+        fixture::entry(
+            dir.path(),
+            "a",
+            br#"{"five_hour":null,"seven_day":null,
+                "limits":[{"kind":"weekly_scoped","percent":9,"resets_at":null,"scope":null}]}"#,
+        );
+        assert!(read(dir.path()).unwrap().seven_day_scoped.is_none());
+
+        let dir = profile_dir();
+        fixture::entry(
+            dir.path(),
+            "a",
+            br#"{"five_hour":null,"seven_day":null,
+                "limits":[{"kind":"weekly_scoped","percent":9,"resets_at":null,
+                    "scope":{"model":{"id":null,"display_name":null}}}]}"#,
+        );
+        assert!(read(dir.path()).unwrap().seven_day_scoped.is_none());
     }
 
     #[test]
