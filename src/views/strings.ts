@@ -350,7 +350,8 @@ export const t = {
     locate: "Locate Claude Desktop…",
     get: "Get Claude Desktop",
     wrongPickMessage: "That doesn't look like Claude Desktop.",
-    wrongPickInformative: "Pick the Claude app in your Applications folder.",
+    wrongPickInformative: `Pick the Claude app that's installed on ${nouns.machine}.`,
+    pickFailedMessage: "Couldn't set the Claude Desktop location.",
   },
 
   rosetta: {

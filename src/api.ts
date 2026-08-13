@@ -118,6 +118,7 @@ export const ERROR_KINDS = [
   "NameEmpty",
   "DirExists",
   "RegistryCorrupt",
+  "NotClaude",
   "Io",
   "Other",
 ] as const;
@@ -246,10 +247,12 @@ export const restartApp = () => call<void>("restart_app");
 export const revealProfile = (id: string) => call<void>("reveal_profile", { id });
 export const isTranslated = () => call<boolean>("is_translated");
 export const openReleasesPage = () => call<void>("open_releases_page");
+/** Opens the native picker; resolves to the stored path, or null when the user cancels. */
+export const locateBinary = () => call<string | null>("locate_binary");
+export const openDownloadPage = () => call<void>("open_download_page");
 
 // Beyond the agreed command contract. Every flow below is specified by plan/03 but has no
 // command yet; each caller degrades to the plan's error path when the backend rejects.
-export const locateBinary = () => call<string | null>("locate_binary");
 export const locateFolder = (id: string) => call<void>("locate_folder", { id });
 export const removeFromList = (id: string) => call<void>("remove_from_list", { id });
 export const forceQuitProfile = (id: string) => call<void>("force_quit_profile", { id });
@@ -257,7 +260,6 @@ export const deleteProfilePermanently = (id: string) =>
   call<void>("delete_profile_permanently", { id });
 export const rebuildRegistry = () => call<ProfileStatus[]>("rebuild_registry");
 export const revealRegistry = () => call<void>("reveal_registry");
-export const openDownloadPage = () => call<void>("open_download_page");
 
 export async function appVersion(): Promise<string> {
   try {

@@ -68,6 +68,8 @@ fn run_manager() {
             commands::doctor,
             commands::is_translated,
             commands::open_releases_page,
+            commands::locate_binary,
+            commands::open_download_page,
             commands::get_general_settings,
             commands::set_open_preferences_at_start,
             commands::set_show_usage_limits,

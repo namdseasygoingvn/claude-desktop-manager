@@ -61,6 +61,8 @@ pub enum CdmError {
     DirExists(String),
     #[error("registry.json is unusable: {0}")]
     RegistryCorrupt(String),
+    #[error("{0} doesn't look like Claude Desktop")]
+    NotClaude(String),
     #[error("{0}")]
     Io(String),
     #[error("{0}")]

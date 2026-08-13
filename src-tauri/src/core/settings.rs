@@ -23,6 +23,9 @@ pub struct Settings {
     pub sidebar_width: Option<u32>,
     pub mcp_enabled: bool,
     pub mcp_port: u16,
+    /// Chosen via Locate Claude Desktop; a stale path is skipped, not an error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claude_binary: Option<PathBuf>,
 }
 
 impl Default for Settings {
@@ -35,6 +38,7 @@ impl Default for Settings {
             // On, so the committed `.mcp.json` resolves without anyone having to find a switch.
             mcp_enabled: true,
             mcp_port: mcp::DEFAULT_PORT,
+            claude_binary: None,
         }
     }
 }
@@ -84,6 +88,7 @@ mod tests {
             sidebar_width: Some(320),
             mcp_enabled: false,
             mcp_port: 20209,
+            claude_binary: None,
         };
         let json = serde_json::to_string(&settings).unwrap();
         assert_eq!(

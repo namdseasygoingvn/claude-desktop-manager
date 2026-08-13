@@ -16,6 +16,7 @@ use crate::tray;
 const CONFIG_FILE: &str = "claude_desktop_config.json";
 const RELEASES_URL: &str =
     "https://github.com/namdseasygoingvn/claude-desktop-manager/releases/latest";
+const DOWNLOAD_URL: &str = "https://claude.com/download";
 
 pub type CmdResult<T> = std::result::Result<T, CommandError>;
 
@@ -37,6 +38,7 @@ impl From<CdmError> for CommandError {
             CdmError::ProfileRunning(d) => ("profileRunning", Some(d)),
             CdmError::DirExists(d) => ("dirExists", Some(d)),
             CdmError::RegistryCorrupt(d) => ("registryCorrupt", Some(d)),
+            CdmError::NotClaude(d) => ("notClaude", Some(d)),
             CdmError::Io(d) => ("io", Some(d)),
             CdmError::Other(d) => ("other", Some(d)),
         };
@@ -284,6 +286,36 @@ pub fn is_translated() -> bool {
 pub fn open_releases_page() -> CmdResult<()> {
     tauri_plugin_opener::open_url(RELEASES_URL, None::<&str>)
         .map_err(|e| CdmError::Io(e.to_string()).into())
+}
+
+#[tauri::command]
+pub fn open_download_page() -> CmdResult<()> {
+    tauri_plugin_opener::open_url(DOWNLOAD_URL, None::<&str>)
+        .map_err(|e| CdmError::Io(e.to_string()).into())
+}
+
+/// `(async)` so the blocking picker never runs on the main thread, which would deadlock it.
+#[tauri::command(async)]
+pub fn locate_binary(app: AppHandle) -> CmdResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let platform = platform::current();
+    let (label, extensions, start) = platform.binary_picker();
+    let mut picker = app.dialog().file().add_filter(label, extensions);
+    if let Some(dir) = start {
+        picker = picker.set_directory(dir);
+    }
+    let Some(picked) = picker.blocking_pick_file() else {
+        return Ok(None);
+    };
+    let picked = picked.into_path().map_err(|e| CdmError::Other(e.to_string()))?;
+    let resolved = platform.resolve_picked_binary(&picked)?;
+
+    let mut current = settings::load();
+    current.claude_binary = Some(resolved.clone());
+    settings::save(&current)?;
+    let _ = tray::rebuild(&app);
+    Ok(Some(resolved.display().to_string()))
 }
 
 pub fn profile_dir(id: &str) -> CmdResult<PathBuf> {

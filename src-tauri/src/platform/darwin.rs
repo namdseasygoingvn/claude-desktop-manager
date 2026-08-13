@@ -12,6 +12,7 @@ use std::process::Command;
 pub(super) struct Darwin;
 
 const BUNDLE_NAME: &str = "Claude.app";
+const APPLICATIONS: &str = "/Applications";
 /// UNVERIFIED: read `:CFBundleIdentifier` off the installed bundle to confirm.
 const BUNDLE_ID: &str = "com.anthropic.claudefordesktop";
 const APP_SUPPORT: &str = "Library/Application Support";
@@ -33,6 +34,25 @@ impl Platform for Darwin {
             .iter()
             .find_map(|b| executable_in(b))
             .ok_or(CdmError::BinaryNotFound)
+    }
+
+    fn binary_picker(&self) -> (&'static str, &'static [&'static str], Option<PathBuf>) {
+        ("Application", &["app"], Some(PathBuf::from(APPLICATIONS)))
+    }
+
+    fn resolve_picked_binary(&self, picked: &Path) -> Result<PathBuf> {
+        let refused = || CdmError::NotClaude(picked.display().to_string());
+        let name = picked.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+        if !name.contains("claude") {
+            return Err(refused());
+        }
+        if picked.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("app")) {
+            return executable_in(picked).ok_or_else(refused);
+        }
+        if super::is_executable_file(picked) {
+            return Ok(picked.to_path_buf());
+        }
+        Err(refused())
     }
 
     fn profiles_root(&self) -> Result<PathBuf> {
@@ -162,7 +182,7 @@ fn c_path(path: &Path) -> Result<CString> {
 }
 
 fn standard_bundles() -> Vec<PathBuf> {
-    let mut bundles = vec![PathBuf::from("/Applications").join(BUNDLE_NAME)];
+    let mut bundles = vec![PathBuf::from(APPLICATIONS).join(BUNDLE_NAME)];
     if let Ok(home) = super::env_dir("HOME") {
         bundles.push(home.join("Applications").join(BUNDLE_NAME));
     }

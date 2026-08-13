@@ -34,8 +34,13 @@ const LOCK_RELEASE_GRACE: Duration = Duration::from_secs(3);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 
 pub trait Platform: Send + Sync {
-    /// `CDM_CLAUDE_BINARY` first, then the platform default. Never cached: the app self-updates.
+    /// `CDM_CLAUDE_BINARY` first, then the saved override, then the platform default. Never
+    /// cached: the app self-updates.
     fn find_claude_binary(&self) -> Result<PathBuf>;
+    /// File-picker setup for Locate Claude Desktop: filter label, extensions, starting directory.
+    fn binary_picker(&self) -> (&'static str, &'static [&'static str], Option<PathBuf>);
+    /// Validate what the user picked and resolve it to the executable to launch.
+    fn resolve_picked_binary(&self, picked: &Path) -> Result<PathBuf>;
     /// Directory that holds the `Claude-*` profile folders.
     fn profiles_root(&self) -> Result<PathBuf>;
     /// Directory that holds `registry.json`.
@@ -82,6 +87,17 @@ fn trash_path(path: &Path) -> Result<()> {
 }
 
 fn override_binary() -> Result<Option<PathBuf>> {
+    if let Some(path) = env_override()? {
+        return Ok(Some(path));
+    }
+    // A stored override that stopped resolving is stale state, not something a launch can fix:
+    // fall through to the normal probe instead of failing every launch over it.
+    Ok(crate::core::settings::load()
+        .claude_binary
+        .filter(|path| is_executable_file(path)))
+}
+
+fn env_override() -> Result<Option<PathBuf>> {
     let Some(raw) = std::env::var_os(BINARY_OVERRIDE_ENV) else {
         return Ok(None);
     };
@@ -99,7 +115,23 @@ fn override_binary() -> Result<Option<PathBuf>> {
 }
 
 fn is_executable_file(path: &Path) -> bool {
-    fs::metadata(path).map(|md| is_executable(&md)).unwrap_or(false)
+    if fs::metadata(path).map(|md| is_executable(&md)).unwrap_or(false) {
+        return true;
+    }
+    appexec_alias(path)
+}
+
+#[cfg(unix)]
+fn appexec_alias(_path: &Path) -> bool {
+    false
+}
+
+/// MSIX app-execution aliases are APPEXECLINK reparse points: launchable, but metadata()
+/// refuses to follow them, so only symlink_metadata can prove they exist.
+#[cfg(windows)]
+fn appexec_alias(path: &Path) -> bool {
+    path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
+        && fs::symlink_metadata(path).is_ok()
 }
 
 #[cfg(unix)]

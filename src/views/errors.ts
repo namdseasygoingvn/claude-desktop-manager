@@ -82,8 +82,13 @@ export function showBinaryNotFound(onResolved?: () => void): void {
       if (!picked) return;
       handle.close();
       onResolved?.();
-    } catch {
-      showNotice(t.binary.wrongPickMessage, t.binary.wrongPickInformative, () => void pickBinary());
+    } catch (error) {
+      const failure = error as CdmError;
+      if (failure.kind === "NotClaude") {
+        showNotice(t.binary.wrongPickMessage, t.binary.wrongPickInformative, () => void pickBinary());
+        return;
+      }
+      showNotice(t.binary.pickFailedMessage, sentence(failure.message) || undefined);
     }
   }
 }
