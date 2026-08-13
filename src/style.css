@@ -776,9 +776,8 @@ button {
   color: var(--text-dim);
 }
 
-/* One meter, two sizes: the detail pane puts label left and countdown-plus-reading right on one
-   line over a thin full-width track, a sidebar row puts a short label and the reading either
-   side of one. */
+/* Both variants stack a text line (label, reset, value) over a full-width track; only type
+   size and spacing differ between a sidebar row and the detail pane. */
 
 .usage-bars {
   display: flex;
@@ -793,57 +792,53 @@ button {
 
 .usage-bars.is-row {
   grid-column: 1;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 8px;
+  margin-top: 6px;
   container: usage-row / inline-size;
 }
 
 .usage-meter {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
 }
 
 .usage-bars.is-detail .usage-meter {
-  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 4px 8px;
 }
 
-/* Same explicit-placement story as the row variant below: the reset sits between the label and
-   the value visually but after the track in the DOM. */
-.usage-bars.is-detail .usage-meter-label {
-  grid-area: 1 / 1;
-  color: var(--text);
-}
-
-.usage-bars.is-detail .usage-meter-value {
-  grid-area: 1 / 3;
-}
-
 .usage-bars.is-row .usage-meter {
-  grid-template-columns: 16px minmax(0, 1fr) 30px;
-  gap: 6px;
+  gap: 3px 6px;
 }
 
-/* The value sits after the track visually but before it in the DOM, so every cell is placed
-   explicitly — auto-placement would push the track onto a second line. */
-.usage-bars.is-row .usage-meter-label {
-  grid-area: 1 / 1;
-}
-
-.usage-bars.is-row .usage-meter-track {
-  grid-area: 1 / 2;
-}
-
-.usage-bars.is-row .usage-meter-value {
-  grid-area: 1 / 3;
-}
-
+/* The reset sits between the label and the value visually but after the track in the DOM, so
+   every cell is placed explicitly — auto-placement would push the track onto the text line. */
 .usage-meter-label {
+  grid-area: 1 / 1;
   color: var(--text-dim);
 }
 
+.usage-bars.is-detail .usage-meter-label {
+  color: var(--text);
+}
+
 .usage-meter-value {
+  grid-area: 1 / 3;
   font-variant-numeric: tabular-nums;
+}
+
+.usage-meter-reset {
+  grid-area: 1 / 2;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-meter-track {
+  grid-area: 2 / 1 / auto / -1;
+  height: 4px;
+  overflow: hidden;
+  background: var(--meter-track);
+  border-radius: 999px;
 }
 
 .usage-bars.is-row .usage-meter-label,
@@ -855,22 +850,6 @@ button {
 .usage-bars.is-row .usage-meter-value {
   text-align: right;
   color: var(--text-dim);
-}
-
-.usage-meter-track {
-  overflow: hidden;
-  background: var(--meter-track);
-  border-radius: 999px;
-}
-
-.usage-bars.is-detail .usage-meter-track {
-  grid-area: 2 / 1 / auto / -1;
-  height: 4px;
-}
-
-.usage-bars.is-row .usage-meter-track {
-  grid-column: 2;
-  height: 4px;
 }
 
 .usage-meter-fill {
@@ -895,34 +874,19 @@ button {
   color: var(--danger);
 }
 
-.usage-meter-reset {
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-
 .usage-bars.is-detail .usage-meter-reset {
-  grid-area: 1 / 2;
   font-size: 12px;
 }
 
-.usage-bars.is-row .usage-meter:has(.usage-meter-reset) {
-  grid-template-columns: 16px minmax(0, 1fr) 30px auto;
-}
-
 .usage-bars.is-row .usage-meter-reset {
-  grid-area: 1 / 4;
   font-size: 10px;
   line-height: 1;
   white-space: nowrap;
 }
 
-/* The sidebar drags down to a width the countdown cannot share with the bar. Rather than
-   truncate it or wrap it under the track, a narrow row drops it and gives the width back. */
+/* The track no longer competes for width — a narrow sidebar now only risks the text line
+   overflowing, so the countdown is dropped. */
 @container usage-row (max-width: 170px) {
-  .usage-bars.is-row .usage-meter:has(.usage-meter-reset) {
-    grid-template-columns: 16px minmax(0, 1fr) 30px;
-  }
-
   .usage-bars.is-row .usage-meter-reset {
     display: none;
   }
