@@ -57,15 +57,22 @@ export function createdLine(iso: string): string {
 }
 
 /** Null under a minute, where the wording drops the figures rather than showing a zero. */
-function remaining(ms: number): { hours: number; minutes: number } | null {
+function remaining(ms: number): { days: number; hours: number; minutes: number } | null {
   if (ms < MINUTE) return null;
-  return { hours: Math.floor(ms / HOUR), minutes: Math.floor((ms % HOUR) / MINUTE) };
+  return {
+    days: Math.floor(ms / DAY),
+    hours: Math.floor((ms % DAY) / HOUR),
+    minutes: Math.floor((ms % HOUR) / MINUTE),
+  };
 }
 
-/** Mirrors the wording of Claude Desktop's own usage popup. */
 export function resetsIn(ms: number): string {
   const left = remaining(ms);
   if (!left) return "Resets in under a min";
+  if (left.days > 0) {
+    const noun = left.days === 1 ? "day" : "days";
+    return `Resets in ${left.days} ${noun} ${left.hours} hr ${left.minutes} min`;
+  }
   const figures = left.hours ? `${left.hours} hr ${left.minutes} min` : `${left.minutes} min`;
   return `Resets in ${figures}`;
 }
@@ -73,16 +80,8 @@ export function resetsIn(ms: number): string {
 export function resetsInShort(ms: number): string {
   const left = remaining(ms);
   if (!left) return "<1m";
+  if (left.days > 0) return `${left.days}d ${left.hours}h ${left.minutes}m`;
   return left.hours ? `${left.hours}h ${left.minutes}m` : `${left.minutes}m`;
-}
-
-export function resetsAtDayShort(at: number): string {
-  const date = new Date(at);
-  return `${date.toLocaleDateString(undefined, { weekday: "short" })} ${time(date)}`;
-}
-
-export function resetsAtDay(at: number): string {
-  return `Resets ${resetsAtDayShort(at)}`;
 }
 
 export function staleReading(sampledAt: number): string {
@@ -270,8 +269,6 @@ export const t = {
     age: sampleAge,
     resetsIn,
     resetsInShort,
-    resetsAtDay,
-    resetsAtDayShort,
     staleReading,
     noCacheEntry: "No reset times yet — Claude Desktop hasn't recorded usage for this profile.",
     cacheUnreadable: `No reset times — Claude Desktop's usage data is in a format ${appName} doesn't recognise.`,

@@ -3,8 +3,6 @@ import { t } from "./strings";
 
 const WARN = 75;
 const CRITICAL = 90;
-/** Further out than this, a weekly reset reads better as a weekday than as a running countdown. */
-const COUNTDOWN_WINDOW = 24 * 60 * 60 * 1000;
 
 type Variant = "row" | "detail";
 
@@ -58,7 +56,7 @@ function reported(usage: Usage, variant: Variant): Limit[] {
       short: t.usage.weeklyShort,
       percent: usage.sevenDay,
       resetsAt: usage.sevenDayResetsAt,
-      resetFormat: dayUnlessSoon,
+      resetFormat: countdown,
     },
   ];
   // The sidebar row's 16px label column can't fit a model name.
@@ -68,7 +66,7 @@ function reported(usage: Usage, variant: Variant): Limit[] {
       short: usage.sevenDayScopedModel,
       percent: usage.sevenDayScoped,
       resetsAt: usage.sevenDayScopedResetsAt,
-      resetFormat: dayUnlessSoon,
+      resetFormat: countdown,
     });
   }
   return limits.filter((limit): limit is Limit => limit.percent !== null);
@@ -77,12 +75,6 @@ function reported(usage: Usage, variant: Variant): Limit[] {
 function countdown(resetsAt: number, now: number, variant: Variant): string {
   const left = resetsAt - now;
   return variant === "row" ? t.usage.resetsInShort(left) : t.usage.resetsIn(left);
-}
-
-/** Claude Desktop's own popup counts the 5-hour limit down but dates the weekly one. */
-function dayUnlessSoon(resetsAt: number, now: number, variant: Variant): string {
-  if (resetsAt - now < COUNTDOWN_WINDOW) return countdown(resetsAt, now, variant);
-  return variant === "row" ? t.usage.resetsAtDayShort(resetsAt) : t.usage.resetsAtDay(resetsAt);
 }
 
 function expired(resetsAt: number | null, now: number): boolean {
