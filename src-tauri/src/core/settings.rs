@@ -35,8 +35,8 @@ impl Default for Settings {
             show_usage_limits: true,
             theme: Theme::default(),
             sidebar_width: None,
-            // On, so the committed `.mcp.json` resolves without anyone having to find a switch.
-            mcp_enabled: true,
+            // Off: serving the app's state over HTTP is opt-in.
+            mcp_enabled: false,
             mcp_port: mcp::DEFAULT_PORT,
             claude_binary: None,
         }
@@ -104,9 +104,9 @@ mod tests {
     }
 
     #[test]
-    fn a_file_from_before_the_debug_server_had_a_switch_leaves_it_on() {
+    fn a_file_from_before_the_debug_server_had_a_switch_leaves_it_off() {
         let parsed: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
-        assert!(parsed.mcp_enabled);
+        assert!(!parsed.mcp_enabled);
         assert_eq!(parsed.mcp_port, mcp::DEFAULT_PORT);
     }
 }
