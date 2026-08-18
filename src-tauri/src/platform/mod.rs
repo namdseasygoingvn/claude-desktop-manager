@@ -56,6 +56,18 @@ pub trait Platform: Send + Sync {
     /// Duplicate a directory tree, copy-on-write where the filesystem offers it. `dst` must not
     /// exist. The result is an independent tree either way — only the disk blocks are shared.
     fn clone_tree(&self, src: &Path, dst: &Path) -> Result<()>;
+    /// Create a directory link at `link` pointing at `target`. `target` must be absolute
+    /// (callers only ever pass the pool path, itself absolute per S1) and need not exist yet
+    /// — both symlink(2) and Windows junction creation store the path without validating it.
+    /// `link` must not already exist; this call never removes or replaces one that does.
+    fn link_dir(&self, target: &Path, link: &Path) -> Result<()>;
+    /// `Some(raw target as stored)` when `path` is any directory link — one this app made or
+    /// a foreign one, resolvable or dangling; the value is read back verbatim, not resolved
+    /// or canonicalized, so a foreign link created with a relative target comes back relative.
+    /// `None` when `path` is a real directory, is missing, or is anything else that isn't a
+    /// link. Classifying "ours" vs "foreign" is the caller's job (plan 06), by comparing the
+    /// returned path against the known pool path.
+    fn link_target(&self, path: &Path) -> Option<PathBuf>;
 }
 
 static CURRENT: Current = Current;
@@ -333,6 +345,12 @@ fn copy_tree(src: &Path, dst: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+// Both platform impls delegate to this for `link_target`: the logic is identical on every OS
+// this app supports.
+pub(crate) fn read_link_target(path: &Path) -> Option<PathBuf> {
+    fs::read_link(path).ok()
 }
 
 fn wait_until(timeout: Duration, mut done: impl FnMut() -> bool) -> bool {

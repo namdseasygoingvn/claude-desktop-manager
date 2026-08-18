@@ -15,6 +15,9 @@ export interface CommandActions {
   adopt: () => void;
   copyDiagnostics: () => void;
   refresh: () => void;
+  /** null = membership unknown (status not loaded yet); the caller must hide the entry, not disable it. */
+  isSessionSyncMember: (id: string) => boolean | null;
+  toggleSessionSync: (id: string) => void;
 }
 
 export interface CommandState {
@@ -70,12 +73,23 @@ function moreMenu(state: CommandState, actions: CommandActions): MenuEntry[] {
 }
 
 export function rowMenu(id: string, actions: CommandActions): MenuEntry[] {
+  const member = actions.isSessionSyncMember(id);
+  const sync: MenuEntry[] =
+    member === null
+      ? []
+      : [
+          {
+            label: member ? t.sessionSync.memberLabel : t.sessionSync.label,
+            onSelect: () => actions.toggleSessionSync(id),
+          },
+        ];
   return [
     { label: t.detail.launch, onSelect: () => actions.launch(id) },
     { label: t.detail.rename, onSelect: actions.rename },
     { label: t.detail.editConfig, onSelect: actions.editConfig },
     { label: t.groups.assignToGroup, onSelect: actions.assignToGroup },
     { label: nouns.revealItem, onSelect: actions.reveal },
+    ...sync,
     "separator",
     { label: t.detail.delete, destructive: true, onSelect: actions.remove },
   ];

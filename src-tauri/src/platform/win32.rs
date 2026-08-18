@@ -135,6 +135,27 @@ impl Platform for Win32 {
         // keep by sparing every profile after the first the download.
         super::copy_tree(src, dst)
     }
+
+    fn link_dir(&self, target: &Path, link: &Path) -> Result<()> {
+        // mklink is a cmd.exe built-in with no standalone executable; needs neither admin nor
+        // Developer Mode, unlike /D symbolic links.
+        let output = Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .stdin(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| super::io_err("mklink /J", e))?;
+        if !output.status.success() {
+            return Err(CdmError::Io(String::from_utf8_lossy(&output.stderr).trim().to_string()));
+        }
+        Ok(())
+    }
+
+    fn link_target(&self, path: &Path) -> Option<PathBuf> {
+        super::read_link_target(path)
+    }
 }
 
 /// Squirrel installs are reachable by convention or by the uninstall key it writes; both are
@@ -222,4 +243,24 @@ fn taskkill(pid: u32, force: bool) {
 
 fn alive(pid: u32) -> bool {
     pid != 0 && System::new_all().process(Pid::from_u32(pid)).is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_dangling_target_is_still_a_constructible_link() {
+        let root = tempfile::tempdir().unwrap();
+        let target = root.path().join("target");
+        let link = root.path().join("link");
+        assert!(Win32.link_dir(&target, &link).is_ok());
+        assert_eq!(Win32.link_target(&link), Some(target));
+    }
+
+    #[test]
+    fn a_plain_directory_is_not_a_link() {
+        let root = tempfile::tempdir().unwrap();
+        assert_eq!(Win32.link_target(root.path()), None);
+    }
 }

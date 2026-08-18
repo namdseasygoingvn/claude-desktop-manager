@@ -12,6 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use super::claude_code;
 use super::naming;
 use super::registry;
+use super::session_pool;
 use super::types::{AdoptCandidate, CdmError, Profile, ProfileStatus, Registry, Result};
 use super::usage;
 use crate::platform;
@@ -98,6 +99,7 @@ pub fn launch(id: &str) -> Result<u32> {
     // the binary out from under it. Undecidable counts as running, and never blocks the launch.
     if matches!(plat.is_running(&dir), Ok(None)) {
         let _ = claude_code::sync(&dir);
+        let _ = session_pool::reconcile(id, &dir);
     }
     let pid = plat.launch(&binary, &dir)?;
 
@@ -153,6 +155,7 @@ pub fn delete(id: &str) -> Result<()> {
     }
 
     reg.profiles.remove(idx);
+    let _ = session_pool::membership::remove(id);
     registry::save(&reg)
 }
 
@@ -457,5 +460,34 @@ mod tests {
         assert_eq!(suggest_name("Claude-Work"), "Work");
         assert_eq!(suggest_name("Claude-client-acme"), "client-acme");
         assert_eq!(suggest_name("Claude-"), "Claude-");
+    }
+
+    #[cfg(unix)]
+    use session_pool::home_guard::with_home;
+
+    #[test]
+    #[cfg(unix)]
+    fn deleting_a_member_profile_clears_its_membership() {
+        let home = tempfile::tempdir().unwrap();
+        with_home(home.path(), || {
+            registry::save(&registered(&["Claude-Test"])).unwrap();
+            session_pool::membership::add("p_Claude-Test").unwrap();
+
+            delete("p_Claude-Test").unwrap();
+
+            assert!(!session_pool::membership::is_member("p_Claude-Test"));
+        });
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn deleting_a_profile_that_was_never_a_member_still_succeeds() {
+        let home = tempfile::tempdir().unwrap();
+        with_home(home.path(), || {
+            registry::save(&registered(&["Claude-Test"])).unwrap();
+
+            assert!(delete("p_Claude-Test").is_ok());
+            assert!(!session_pool::membership::is_member("p_Claude-Test"));
+        });
     }
 }

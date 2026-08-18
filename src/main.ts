@@ -5,10 +5,13 @@ import {
   getGeneralSettings,
   getMcpLogs,
   getMcpStatus,
+  getSessionSyncStatus,
   hideWindow,
   installUpdate,
   isTranslated,
+  joinSessionSync,
   launchProfile,
+  leaveSessionSync,
   listAdoptable,
   listGroups,
   listProfiles,
@@ -31,9 +34,11 @@ import {
   type CdmError,
   type GeneralSettings,
   type Group,
+  type JoinReport,
   type McpStatus,
   type Profile,
   type ProfileStatus,
+  type SessionSyncStatus,
   type Theme,
   type UpdateProgress,
 } from "./api";
@@ -126,6 +131,7 @@ const state = {
   mcpLogs: [] as string[],
   mcpPortDraft: null as string | null,
   mcpError: null as string | null,
+  sessionSync: null as SessionSyncStatus | null,
 };
 
 document.documentElement.dataset.platform = platform;
@@ -161,6 +167,7 @@ async function refresh(): Promise<void> {
   state.groupsUnavailable = groups === null;
   state.groups = groups?.groups ?? [];
   state.order = groups?.order ?? [];
+  state.sessionSync = await getSessionSyncStatus().catch(() => null);
   const ids = new Set(state.profiles.map((status) => status.profile.id));
   for (const id of state.missing) if (!ids.has(id)) state.missing.delete(id);
   if (!state.selectedId || !ids.has(state.selectedId)) {
@@ -762,6 +769,30 @@ async function reorderProfile(
   }
 }
 
+function isSessionSyncMember(id: string): boolean | null {
+  if (!state.sessionSync) return null;
+  return state.sessionSync.profileIds.includes(id);
+}
+
+function toggleSessionSync(id: string): void {
+  const member = isSessionSyncMember(id);
+  const call = member
+    ? leaveSessionSync(id)
+    : joinSessionSync(id).then((report: JoinReport) => {
+        if (report.skippedForeign.length > 0) {
+          showNotice(t.sessionSync.joinPartial, report.skippedForeign.join(", "));
+        }
+      });
+  void call
+    .then(async () => {
+      state.sessionSync = await getSessionSyncStatus().catch(() => null);
+      render();
+    })
+    .catch((error) => {
+      showNotice(member ? t.sessionSync.leaveFailed : t.sessionSync.joinFailed, (error as CdmError).message);
+    });
+}
+
 function groupMenu(id: string): MenuEntry[] {
   const group = state.groups.find((entry) => entry.id === id);
   if (!group) return [];
@@ -803,6 +834,8 @@ const actions: CommandActions = {
   adopt,
   copyDiagnostics: () => void copyDiagnostics(),
   refresh: () => void refresh(),
+  isSessionSyncMember,
+  toggleSessionSync,
 };
 
 function onKeydown(event: KeyboardEvent): void {

@@ -239,6 +239,14 @@ export const t = {
     },
   },
 
+  sessionSync: {
+    label: "Sync Sessions Across Profiles",
+    memberLabel: "✓ Sync Sessions Across Profiles",
+    joinFailed: "Couldn't join session sync.",
+    leaveFailed: "Couldn't leave session sync.",
+    joinPartial: "Some account folders were already linked elsewhere and were skipped:",
+  },
+
   detail: {
     neverLaunched: "Never launched · not signed in yet",
     neverLaunchedHint:

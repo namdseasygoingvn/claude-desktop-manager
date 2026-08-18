@@ -141,6 +141,16 @@ impl Platform for Darwin {
     fn clone_tree(&self, src: &Path, dst: &Path) -> Result<()> {
         clonefile(src, dst).or_else(|_| super::copy_tree(src, dst))
     }
+
+    fn link_dir(&self, target: &Path, link: &Path) -> Result<()> {
+        std::os::unix::fs::symlink(target, link).map_err(|e| {
+            super::io_err(&format!("symlink {} -> {}", link.display(), target.display()), e)
+        })
+    }
+
+    fn link_target(&self, path: &Path) -> Option<PathBuf> {
+        super::read_link_target(path)
+    }
 }
 
 /// Whether this very process runs under Rosetta. The sysctl is absent on Intel, where the
@@ -303,4 +313,34 @@ fn alive(pid: u32) -> bool {
         return true;
     }
     std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_dangling_target_is_still_a_constructible_link() {
+        let root = tempfile::tempdir().unwrap();
+        let target = root.path().join("target");
+        let link = root.path().join("link");
+        assert!(Darwin.link_dir(&target, &link).is_ok());
+        assert_eq!(Darwin.link_target(&link), Some(target));
+    }
+
+    #[test]
+    fn link_target_returns_a_foreign_target_unmodified() {
+        let root = tempfile::tempdir().unwrap();
+        let target = root.path().join("elsewhere");
+        std::fs::create_dir(&target).unwrap();
+        let link = root.path().join("link");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        assert_eq!(Darwin.link_target(&link), Some(target));
+    }
+
+    #[test]
+    fn a_plain_directory_is_not_a_link() {
+        let root = tempfile::tempdir().unwrap();
+        assert_eq!(Darwin.link_target(root.path()), None);
+    }
 }

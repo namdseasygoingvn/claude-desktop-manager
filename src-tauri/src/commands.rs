@@ -7,6 +7,7 @@ use tauri_plugin_autostart::ManagerExt;
 use crate::core::groups;
 use crate::core::profile;
 use crate::core::registry;
+use crate::core::session_pool;
 use crate::core::settings;
 use crate::core::theme::Theme;
 use crate::core::types::{AdoptCandidate, CdmError, Profile, ProfileStatus};
@@ -64,6 +65,12 @@ pub struct DoctorReport {
     pub binary_error: Option<CommandError>,
     pub profiles_root: String,
     pub reconcile: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSyncStatus {
+    pub profile_ids: Vec<String>,
 }
 
 #[tauri::command]
@@ -255,6 +262,21 @@ pub fn set_sidebar_width(width: u32) -> CmdResult<()> {
     let mut current = settings::load();
     current.sidebar_width = Some(width);
     Ok(settings::save(&current)?)
+}
+
+#[tauri::command]
+pub fn session_sync_status() -> CmdResult<SessionSyncStatus> {
+    Ok(SessionSyncStatus { profile_ids: session_pool::status() })
+}
+
+#[tauri::command]
+pub fn session_sync_join(id: String) -> CmdResult<session_pool::JoinReport> {
+    Ok(session_pool::join(&id)?)
+}
+
+#[tauri::command]
+pub fn session_sync_leave(id: String) -> CmdResult<()> {
+    Ok(session_pool::leave(&id)?)
 }
 
 #[tauri::command]

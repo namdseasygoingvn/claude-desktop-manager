@@ -76,6 +76,15 @@ export interface GeneralSettings {
   theme: Theme;
 }
 
+export interface SessionSyncStatus {
+  profileIds: string[];
+}
+
+/** Mirrors `session_pool::JoinReport`: account-uuid dirs skipped because a foreign link sat there. */
+export interface JoinReport {
+  skippedForeign: string[];
+}
+
 /**
  * The embedded MCP debug server. Mirrors `mcp::commands::McpStatus`.
  *
@@ -253,6 +262,10 @@ export const openReleasesPage = () => call<void>("open_releases_page");
 /** Opens the native picker; resolves to the stored path, or null when the user cancels. */
 export const locateBinary = () => call<string | null>("locate_binary");
 export const openDownloadPage = () => call<void>("open_download_page");
+
+export const getSessionSyncStatus = () => call<SessionSyncStatus>("session_sync_status");
+export const joinSessionSync = (id: string) => call<JoinReport>("session_sync_join", { id });
+export const leaveSessionSync = (id: string) => call<void>("session_sync_leave", { id });
 
 // Beyond the agreed command contract. Every flow below is specified by plan/03 but has no
 // command yet; each caller degrades to the plan's error path when the backend rejects.
