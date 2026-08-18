@@ -1,7 +1,8 @@
 import type { ProfileStatus } from "../api";
-import { FolderOpen, icon, Pencil } from "./icons";
-import { runningLabel } from "./running";
-import { t } from "./strings";
+import { toggle } from "./general";
+import { icon, Pencil } from "./icons";
+import { runningLabel, syncLabel } from "./running";
+import { nouns, t } from "./strings";
 import { usageBars } from "./usage";
 
 export interface DetailActions {
@@ -11,6 +12,11 @@ export interface DetailActions {
   remove: () => void;
   locate: () => void;
   removeFromList: () => void;
+  editConfig: () => void;
+  assignToGroup: () => void;
+  /** null = membership unknown (status not loaded yet); the caller must hide the toggle, not disable it. */
+  isSessionSyncMember: (id: string) => boolean | null;
+  toggleSessionSync: (id: string) => void;
 }
 
 export interface DetailProps {
@@ -29,6 +35,7 @@ export function renderDetail(props: DetailProps): HTMLElement {
 
   const { profile } = props.status;
   const running = props.status.runningPid !== null;
+  const syncMembership = props.actions.isSessionSyncMember(profile.id);
 
   const heading = document.createElement("h1");
   heading.className = "detail-name";
@@ -39,6 +46,7 @@ export function renderDetail(props: DetailProps): HTMLElement {
   const secondLine = document.createElement("p");
   secondLine.className = "detail-status";
   secondLine.append(...statusLine(props, running));
+  if (!props.missing && syncMembership === true) secondLine.append(syncLabel(t.sessionSync.statusLabel));
 
   const head = document.createElement("div");
   head.className = "detail-head";
@@ -73,15 +81,7 @@ export function renderDetail(props: DetailProps): HTMLElement {
   launch.dataset.focusKey = "primary";
   launch.addEventListener("click", props.actions.launch);
 
-  const reveal = document.createElement("button");
-  reveal.type = "button";
-  reveal.className = "button detail-reveal";
-  reveal.title = t.detail.reveal;
-  reveal.setAttribute("aria-label", t.detail.reveal);
-  reveal.append(icon(FolderOpen));
-  reveal.addEventListener("click", props.actions.reveal);
-
-  launchRow.append(launch, reveal);
+  launchRow.append(launch);
 
   const rule = document.createElement("hr");
 
@@ -89,15 +89,67 @@ export function renderDetail(props: DetailProps): HTMLElement {
   created.className = "detail-created";
   created.textContent = t.detail.created(profile.createdAt);
 
+  const footer = document.createElement("div");
+  footer.className = "detail-footer";
+
   const remove = document.createElement("button");
   remove.type = "button";
-  remove.className = "link destructive";
+  remove.className = "button destructive";
   remove.textContent = t.detail.delete;
   remove.dataset.focusKey = "delete";
   remove.addEventListener("click", props.actions.remove);
 
-  pane.append(launchRow, rule, created, remove);
+  footer.append(remove);
+
+  pane.append(
+    launchRow,
+    actionList(profile.id, syncMembership, props.actions),
+    rule,
+    created,
+    footer,
+  );
   return pane;
+}
+
+function actionList(
+  profileId: string,
+  syncMembership: boolean | null,
+  actions: DetailActions,
+): HTMLElement {
+  const list = document.createElement("div");
+  list.className = "detail-action-list";
+
+  list.append(
+    actionRow(t.detail.editConfig, t.detail.editConfigHint, "edit-config", actions.editConfig),
+    actionRow(t.groups.assignToGroup, t.detail.assignToGroupHint, "assign-group", actions.assignToGroup),
+    actionRow(nouns.revealItem, t.detail.revealHint, "reveal", actions.reveal),
+  );
+
+  if (syncMembership !== null) {
+    list.append(
+      toggle({
+        focusKey: "sync-sessions",
+        label: t.sessionSync.label,
+        hint: t.sessionSync.hint,
+        checked: syncMembership,
+        onChange: () => actions.toggleSessionSync(profileId),
+      }),
+    );
+  }
+
+  return list;
+}
+
+function actionRow(label: string, hint: string, focusKey: string, onClick: () => void): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "detail-action";
+
+  const hintLine = document.createElement("p");
+  hintLine.className = "helper";
+  hintLine.textContent = hint;
+
+  row.append(action(label, focusKey, onClick), hintLine);
+  return row;
 }
 
 function renameButton(onClick: () => void): HTMLButtonElement {

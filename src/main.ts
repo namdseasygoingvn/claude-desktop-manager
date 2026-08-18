@@ -579,6 +579,7 @@ function manager(): HTMLElement[] {
       filter: state.filter,
       reorderable: !state.groupsUnavailable,
       showUsage: state.settings.showUsageLimits,
+      isSessionSyncMember,
       onSelect: select,
       onActivate: launch,
       onFilter: (value) => {
@@ -608,6 +609,10 @@ function manager(): HTMLElement[] {
         remove,
         locate,
         removeFromList,
+        editConfig,
+        assignToGroup,
+        isSessionSyncMember,
+        toggleSessionSync,
       },
     }),
   ];

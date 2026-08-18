@@ -10,3 +10,11 @@ export function runningLabel(text: string): HTMLElement {
   span.textContent = text;
   return span;
 }
+
+/** Same wave, cyan instead of green — see `.is-sync` in style.css. */
+export function syncLabel(text: string): HTMLElement {
+  const span = document.createElement("span");
+  span.className = "is-sync";
+  span.textContent = text;
+  return span;
+}

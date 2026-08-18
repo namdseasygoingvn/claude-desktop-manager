@@ -4,7 +4,7 @@ import { GripVertical, groupIcon, icon } from "./icons";
 import { renderGroupHeader } from "./groups";
 import { neighbourMove, reorderStep } from "./reorder";
 import { resizeHandle } from "./resize";
-import { runningLabel } from "./running";
+import { runningLabel, syncLabel } from "./running";
 import { lastUsedShort, t } from "./strings";
 import { usageBars, usageSummary } from "./usage";
 
@@ -20,6 +20,8 @@ export interface ListProps {
   filter: string;
   reorderable: boolean;
   showUsage: boolean;
+  /** null = membership unknown (status not loaded yet); the caller must hide the badge, not guess. */
+  isSessionSyncMember: (id: string) => boolean | null;
   onSelect: (id: string) => void;
   onActivate: (id: string) => void;
   onFilter: (value: string) => void;
@@ -222,6 +224,9 @@ function renderRow(status: ProfileStatus, props: ListProps): HTMLElement {
     secondary.textContent = profile.lastUsedAt
       ? lastUsedShort(profile.lastUsedAt)
       : t.list.neverLaunched;
+  }
+  if (!missing && props.isSessionSyncMember(profile.id) === true) {
+    secondary.append(syncLabel(t.sessionSync.badge));
   }
 
   row.append(name, secondary);

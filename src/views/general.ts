@@ -66,7 +66,7 @@ export function renderGeneral(options: GeneralOptions): HTMLElement {
   return pane;
 }
 
-interface ToggleOptions {
+export interface ToggleOptions {
   focusKey: string;
   label: string;
   hint: string;
@@ -74,7 +74,7 @@ interface ToggleOptions {
   onChange: (enabled: boolean) => void;
 }
 
-function toggle(options: ToggleOptions): HTMLElement {
+export function toggle(options: ToggleOptions): HTMLElement {
   const row = document.createElement("label");
   row.className = "settings-toggle";
 
