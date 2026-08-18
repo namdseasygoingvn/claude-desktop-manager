@@ -17,12 +17,12 @@ pub(super) struct Win32;
 pub(super) const DETACHED_PROCESS: u32 = 0x0000_0008;
 pub(super) const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 /// Ignored when combined with DETACHED_PROCESS, so it belongs on console helpers only.
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub(super) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 const TASKKILL: &str = "taskkill";
-const REG: &str = "reg";
-const EXE_NAME: &str = "claude.exe";
-const LOCAL_APP_DATA: &str = "LOCALAPPDATA";
+pub(super) const REG: &str = "reg";
+pub(super) const EXE_NAME: &str = "claude.exe";
+pub(super) const LOCAL_APP_DATA: &str = "LOCALAPPDATA";
 const INSTALL_ROOTS: [(&str, &str); 3] = [
     (LOCAL_APP_DATA, "AnthropicClaude"),
     (LOCAL_APP_DATA, r"Programs\AnthropicClaude"),
@@ -30,7 +30,8 @@ const INSTALL_ROOTS: [(&str, &str); 3] = [
 ];
 const UNINSTALL_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Claude";
 /// The MSIX channel installs no enumerable directory and writes no uninstall key; this alias is
-/// the only thing it leaves behind that can be launched.
+/// the reliable launch vector when present, but deleting it leaves the package registration
+/// itself intact — `msix::payload_exe` probes that when the alias is gone.
 const MSIX_ALIAS_DIR: &str = r"Microsoft\WindowsApps";
 const VERSION_DIR_PREFIX: &str = "app-";
 
@@ -47,6 +48,8 @@ impl Platform for Win32 {
             .flat_map(|root| [newest_versioned_exe(&root), Some(root.join(EXE_NAME))])
             .flatten()
             .chain(msix_alias())
+            // Lazy: the package probe spawns reg twice, which an alias hit should skip.
+            .chain(std::iter::once_with(super::msix::payload_exe).flatten())
             .find(|candidate| super::is_executable_file(candidate))
             .ok_or(CdmError::BinaryNotFound)
     }
@@ -77,6 +80,13 @@ impl Platform for Win32 {
     }
 
     fn launch(&self, binary: &Path, data_dir: &Path) -> Result<u32> {
+        // In-place launches out of the package store are unreliable (conditional ACLs, no
+        // package activation), so the payload runs from an out-of-store copy instead. The first
+        // such launch pays a one-time payload copy — that latency is accepted.
+        if super::msix::is_in_package_store(binary) {
+            let copy = super::msix_portable::launchable_copy(binary)?;
+            return super::spawn_detached(&copy, data_dir);
+        }
         // UNVERIFIED: if the stub execs the real binary and exits, this pid is short-lived and
         // `is_running` resolves the survivor by argv instead.
         super::spawn_detached(binary, data_dir)
@@ -169,8 +179,12 @@ fn install_roots() -> Vec<PathBuf> {
 }
 
 fn registry_install_location() -> Option<PathBuf> {
+    reg_sz_query(UNINSTALL_KEY, "InstallLocation").map(PathBuf::from)
+}
+
+pub(super) fn reg_sz_query(key: &str, value: &str) -> Option<String> {
     let output = Command::new(REG)
-        .args(["query", UNINSTALL_KEY, "/v", "InstallLocation"])
+        .args(["query", key, "/v", value])
         .stdin(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .output()
@@ -179,12 +193,10 @@ fn registry_install_location() -> Option<PathBuf> {
         return None;
     }
     let text = String::from_utf8_lossy(&output.stdout);
-    let line = text
-        .lines()
-        .find(|line| line.trim_start().starts_with("InstallLocation"))?;
-    let (_, path) = line.split_once("REG_SZ")?;
-    let path = path.trim();
-    (!path.is_empty()).then(|| PathBuf::from(path))
+    let line = text.lines().find(|line| line.trim_start().starts_with(value))?;
+    let (_, result) = line.split_once("REG_SZ")?;
+    let result = result.trim();
+    (!result.is_empty()).then(|| result.to_string())
 }
 
 /// Squirrel keeps the real binary under `app-<version>`; the root exe is only a launcher stub and
@@ -203,7 +215,7 @@ fn newest_versioned_exe(root: &Path) -> Option<PathBuf> {
         .map(|(_, exe)| exe)
 }
 
-fn version_key(version: &str) -> Vec<u64> {
+pub(super) fn version_key(version: &str) -> Vec<u64> {
     version.split('.').map(|part| part.parse().unwrap_or(0)).collect()
 }
 

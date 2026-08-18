@@ -23,7 +23,7 @@ pub struct Settings {
     pub sidebar_width: Option<u32>,
     pub mcp_enabled: bool,
     pub mcp_port: u16,
-    /// Chosen via Locate Claude Desktop; a stale path is skipped, not an error.
+    /// Chosen via Locate Claude Desktop; cleared when it stops resolving.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claude_binary: Option<PathBuf>,
 }

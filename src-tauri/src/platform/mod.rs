@@ -12,6 +12,10 @@ use sysinfo::System;
 mod darwin;
 #[cfg(target_os = "windows")]
 mod win32;
+#[cfg(target_os = "windows")]
+mod msix;
+#[cfg(target_os = "windows")]
+mod msix_portable;
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 compile_error!("cdm supports macOS and Windows only");
@@ -102,11 +106,40 @@ fn override_binary() -> Result<Option<PathBuf>> {
     if let Some(path) = env_override()? {
         return Ok(Some(path));
     }
-    // A stored override that stopped resolving is stale state, not something a launch can fix:
-    // fall through to the normal probe instead of failing every launch over it.
-    Ok(crate::core::settings::load()
-        .claude_binary
-        .filter(|path| is_executable_file(path)))
+    let Some(saved) = crate::core::settings::load().claude_binary else {
+        return Ok(None);
+    };
+    if let Some(path) = revalidate_override(&saved) {
+        return Ok(Some(path));
+    }
+    clear_stale_override();
+    Ok(None)
+}
+
+#[cfg(unix)]
+fn revalidate_override(saved: &Path) -> Option<PathBuf> {
+    is_executable_file(saved).then(|| saved.to_path_buf())
+}
+
+#[cfg(windows)]
+fn revalidate_override(saved: &Path) -> Option<PathBuf> {
+    // A package-store path is version-pinned and dies on every Claude auto-update, so the
+    // package query is the durable identity and wins whenever it resolves.
+    if msix::is_in_package_store(saved) {
+        if let Some(path) = msix::payload_exe() {
+            return Some(path);
+        }
+    }
+    is_executable_file(saved).then(|| saved.to_path_buf())
+}
+
+/// A stale override that lingers in settings misreports state to Preferences and doctor;
+/// clearing is the honest surface.
+fn clear_stale_override() {
+    let mut settings = crate::core::settings::load();
+    if settings.claude_binary.take().is_some() {
+        let _ = crate::core::settings::save(&settings);
+    }
 }
 
 fn env_override() -> Result<Option<PathBuf>> {
