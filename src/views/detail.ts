@@ -121,8 +121,8 @@ function actionList(
 
   list.append(
     actionRow(t.detail.editConfig, t.detail.editConfigHint, "edit-config", actions.editConfig),
-    actionRow(t.groups.assignToGroup, t.detail.assignToGroupHint, "assign-group", actions.assignToGroup),
     actionRow(nouns.revealItem, t.detail.revealHint, "reveal", actions.reveal),
+    actionRow(t.groups.assignToGroup, t.detail.assignToGroupHint, "assign-group", actions.assignToGroup),
   );
 
   if (syncMembership !== null) {
