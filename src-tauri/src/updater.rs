@@ -43,8 +43,10 @@ async fn pending(app: &AppHandle) -> Result<Option<Update>, String> {
     updater.check().await.map_err(|e| e.to_string())
 }
 
-/// Installing replaces the bundle on disk but leaves this process running the old code, so the
-/// update lands on the next launch — either the user's own, or `restart_app`.
+/// On macOS/Linux, installing replaces the bundle on disk but leaves this process running the
+/// old code, so the update lands on the next launch — either the user's own, or `restart_app`.
+/// On Windows, the plugin hands off to the NSIS/MSI installer and exits this process instead, so
+/// this must only run for a user-initiated install there (see `spawn_background_check`).
 async fn install_latest(app: &AppHandle, report: bool) -> Result<Option<String>, String> {
     let Some(update) = pending(app).await? else {
         return Ok(None);
@@ -75,16 +77,24 @@ fn failed(detail: String) -> CommandError {
     CommandError { kind: "updateFailed", detail: Some(detail) }
 }
 
+/// On Windows this is a no-op: `install_latest` there hands off to the installer and exits the
+/// process, so a silent pass would restart the app under the user. The webview's hourly poll
+/// (`check_for_updates`) surfaces availability instead, leaving the install to the Update button.
 pub fn spawn_background_check(app: &AppHandle) {
-    let app = app.clone();
-    std::thread::spawn(move || loop {
-        match tauri::async_runtime::block_on(install_latest(&app, false)) {
-            Ok(Some(version)) => log::info!("updated to {version}; applies on next launch"),
-            Ok(None) => {}
-            Err(detail) => log::warn!("update check failed: {detail}"),
-        }
-        std::thread::sleep(POLL_INTERVAL);
-    });
+    #[cfg(target_os = "windows")]
+    let _ = app;
+    #[cfg(not(target_os = "windows"))]
+    {
+        let app = app.clone();
+        std::thread::spawn(move || loop {
+            match tauri::async_runtime::block_on(install_latest(&app, false)) {
+                Ok(Some(version)) => log::info!("updated to {version}; applies on next launch"),
+                Ok(None) => {}
+                Err(detail) => log::warn!("update check failed: {detail}"),
+            }
+            std::thread::sleep(POLL_INTERVAL);
+        });
+    }
 }
 
 #[tauri::command]
