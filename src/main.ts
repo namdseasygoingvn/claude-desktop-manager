@@ -566,7 +566,11 @@ function manager(): HTMLElement[] {
   const status = selected();
   const parts: HTMLElement[] = [
     renderToolbar(
-      { hasSelection: !!state.selectedId, hasCandidates: state.candidates.length > 0 },
+      {
+        hasSelection: !!state.selectedId,
+        hasCandidates: state.candidates.length > 0,
+        selectedIsDefaultInstall: !!status?.isDefaultInstall,
+      },
       actions,
     ),
     renderSidebar({
@@ -586,7 +590,11 @@ function manager(): HTMLElement[] {
         state.filter = value;
         render();
       },
-      onContextMenu: (id, x, y) => openMenu(rowMenu(id, actions), { x, y }),
+      onContextMenu: (id, x, y) =>
+        openMenu(
+          rowMenu(id, actions, !!state.profiles.find((entry) => entry.profile.id === id)?.isDefaultInstall),
+          { x, y },
+        ),
       onToggleGroup: (id) => {
         if (state.collapsed.has(id)) state.collapsed.delete(id);
         else state.collapsed.add(id);

@@ -23,6 +23,7 @@ export interface CommandActions {
 export interface CommandState {
   hasSelection: boolean;
   hasCandidates: boolean;
+  selectedIsDefaultInstall: boolean;
 }
 
 export function renderToolbar(state: CommandState, actions: CommandActions): HTMLElement {
@@ -36,7 +37,7 @@ export function renderToolbar(state: CommandState, actions: CommandActions): HTM
 
   if (isMac) {
     const remove = iconButton(t.list.deleteProfile, Minus);
-    remove.disabled = !state.hasSelection;
+    remove.disabled = !state.hasSelection || state.selectedIsDefaultInstall;
     remove.addEventListener("click", actions.remove);
     bar.append(remove);
   }
@@ -72,7 +73,7 @@ function moreMenu(state: CommandState, actions: CommandActions): MenuEntry[] {
   ];
 }
 
-export function rowMenu(id: string, actions: CommandActions): MenuEntry[] {
+export function rowMenu(id: string, actions: CommandActions, isDefaultInstall: boolean): MenuEntry[] {
   const member = actions.isSessionSyncMember(id);
   const sync: MenuEntry[] =
     member === null
@@ -91,7 +92,7 @@ export function rowMenu(id: string, actions: CommandActions): MenuEntry[] {
     { label: nouns.revealItem, onSelect: actions.reveal },
     ...sync,
     "separator",
-    { label: t.detail.delete, destructive: true, onSelect: actions.remove },
+    { label: t.detail.delete, destructive: true, disabled: isDefaultInstall, onSelect: actions.remove },
   ];
 }
 

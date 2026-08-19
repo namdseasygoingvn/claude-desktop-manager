@@ -17,6 +17,7 @@ export interface DeleteOptions {
 }
 
 export function confirmDelete(options: DeleteOptions): void {
+  if (options.status.isDefaultInstall) return;
   const profile = options.status.profile;
   let running = options.status.runningPid !== null;
 

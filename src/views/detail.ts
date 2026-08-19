@@ -92,14 +92,16 @@ export function renderDetail(props: DetailProps): HTMLElement {
   const footer = document.createElement("div");
   footer.className = "detail-footer";
 
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "button destructive";
-  remove.textContent = t.detail.delete;
-  remove.dataset.focusKey = "delete";
-  remove.addEventListener("click", props.actions.remove);
+  if (!props.status.isDefaultInstall) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "button destructive";
+    remove.textContent = t.detail.delete;
+    remove.dataset.focusKey = "delete";
+    remove.addEventListener("click", props.actions.remove);
 
-  footer.append(remove);
+    footer.append(remove);
+  }
 
   pane.append(
     launchRow,

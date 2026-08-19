@@ -15,7 +15,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::profile::{random_id, UNMANAGED_DIR};
+use super::profile::{is_unmanaged_dir, random_id, UNMANAGED_DIR};
 use super::types::{CdmError, Result};
 use crate::platform;
 
@@ -31,6 +31,16 @@ const COLLAPSED_FILE: &str = ".cdm-shared";
 /// Point one profile's runtimes at the shared store, seeding the store from this profile for
 /// any build it has not seen. Call only while the profile is down.
 pub fn sync(profile_dir: &Path) -> Result<()> {
+    // The default install's claude-code dir IS the store; sharing it with itself would clone
+    // the tree onto itself and remove the store's version dir mid-swap.
+    let is_the_store_itself = profile_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(is_unmanaged_dir);
+    if is_the_store_itself {
+        return Ok(());
+    }
+
     let store = store_dir()?;
     let local = profile_dir.join(DIR_NAME);
     let known = collapsed(&local);
@@ -212,5 +222,18 @@ mod tests {
     fn the_store_is_the_stock_installs_own_runtime_folder() {
         let store = store_dir().unwrap();
         assert!(store.ends_with(Path::new(UNMANAGED_DIR).join(DIR_NAME)));
+    }
+
+    #[test]
+    fn sync_is_a_no_op_for_the_unmanaged_installs_own_dir() {
+        let root = tempfile::tempdir().unwrap();
+        let profile_dir = root.path().join(UNMANAGED_DIR);
+        // No versions on purpose: a regressed guard then only writes the collapsed file locally
+        // instead of seeding the machine's real store.
+        fs::create_dir_all(profile_dir.join(DIR_NAME)).unwrap();
+
+        sync(&profile_dir).unwrap();
+
+        assert!(!profile_dir.join(DIR_NAME).join(COLLAPSED_FILE).exists());
     }
 }

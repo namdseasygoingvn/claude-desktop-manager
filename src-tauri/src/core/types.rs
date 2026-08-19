@@ -35,6 +35,9 @@ pub struct ProfileStatus {
     pub profile: Profile,
     pub running_pid: Option<u32>,
     pub usage: Option<Usage>,
+    /// Computed at the construction site from the profile's dir; nothing else may re-derive it
+    /// from a name or dir string.
+    pub is_default_install: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

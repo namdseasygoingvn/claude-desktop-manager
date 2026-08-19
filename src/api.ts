@@ -39,6 +39,7 @@ export interface ProfileStatus {
   profile: Profile;
   runningPid: number | null;
   usage: Usage | null;
+  isDefaultInstall: boolean;
 }
 
 export interface AdoptCandidate {

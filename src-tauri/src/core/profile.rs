@@ -70,10 +70,12 @@ pub fn list() -> Result<Vec<ProfileStatus>> {
         .map(|profile| {
             let dir = root.join(&profile.dir);
             let running_pid = plat.is_running(&dir).unwrap_or(None);
+            let is_default_install = is_unmanaged_dir(&profile.dir);
             ProfileStatus {
                 profile,
                 running_pid,
                 usage: usage::read(&dir),
+                is_default_install,
             }
         })
         .collect())
@@ -118,7 +120,8 @@ pub fn rename(id: &str, new_name: &str) -> Result<Profile> {
     let idx = index_of(&reg, id)?;
     let current_dir = reg.profiles[idx].dir.clone();
 
-    if !folder_matches(&current_dir, new_name) {
+    // The default install's folder never moves; renaming it is registry-only, whatever the name.
+    if !is_unmanaged_dir(&current_dir) && !folder_matches(&current_dir, new_name) {
         let from = root.join(&current_dir);
         if plat.is_running(&from)?.is_some() {
             return Err(CdmError::ProfileRunning(reg.profiles[idx].name.clone()));
@@ -142,8 +145,14 @@ pub fn delete(id: &str) -> Result<()> {
     let root = plat.profiles_root()?;
     let mut reg = registry::load()?;
     let idx = index_of(&reg, id)?;
-    let dir = root.join(&reg.profiles[idx].dir);
 
+    if is_unmanaged_dir(&reg.profiles[idx].dir) {
+        return Err(CdmError::Other(format!(
+            "{UNMANAGED_DIR} is the default Claude Desktop install; cdm never deletes it"
+        )));
+    }
+
+    let dir = root.join(&reg.profiles[idx].dir);
     if plat.is_running(&dir)?.is_some() {
         return Err(CdmError::ProfileRunning(reg.profiles[idx].name.clone()));
     }
@@ -175,11 +184,6 @@ pub fn quit(id: &str) -> Result<()> {
 pub fn adopt(dir_name: &str, display_name: &str) -> Result<Profile> {
     let name = non_empty(display_name)?;
     let dir_name = single_component(dir_name)?;
-    if naming::same_folder(dir_name, UNMANAGED_DIR) {
-        return Err(CdmError::Other(format!(
-            "{UNMANAGED_DIR} is the existing unmanaged install; cdm leaves it alone"
-        )));
-    }
 
     let plat = platform::current();
     let dir = plat.profiles_root()?.join(dir_name);
@@ -214,9 +218,8 @@ pub fn adopt(dir_name: &str, display_name: &str) -> Result<Profile> {
     Ok(profile)
 }
 
-/// Hand-made folders cdm could adopt: `Claude-*`, unmarked, unregistered, and holding profile
-/// evidence. The prefix is also what keeps the bare `Claude` install off every surface — it has
-/// no trailing dash, so it can never match.
+/// Folders cdm could adopt — `Claude-*`, or the default install's bare `Claude` itself — each
+/// unmarked, unregistered, and holding profile evidence.
 pub fn adoptable() -> Result<Vec<AdoptCandidate>> {
     let root = platform::current().profiles_root()?;
     let reg = registry::load()?;
@@ -244,7 +247,7 @@ pub fn adoptable() -> Result<Vec<AdoptCandidate>> {
 
 fn is_adoptable(root: &Path, dir_name: &str, reg: &Registry) -> bool {
     let dir = root.join(dir_name);
-    has_profile_prefix(dir_name)
+    (has_profile_prefix(dir_name) || is_unmanaged_dir(dir_name))
         && dir.is_dir()
         && !dir.join(MARKER_FILE).exists()
         && !reg
@@ -257,6 +260,12 @@ fn is_adoptable(root: &Path, dir_name: &str, reg: &Registry) -> bool {
 /// Compared through the normalized key: APFS `readdir` returns the bytes as stored, often NFD.
 fn has_profile_prefix(dir_name: &str) -> bool {
     naming::normalize_key(dir_name).starts_with(&naming::normalize_key(naming::FOLDER_PREFIX))
+}
+
+/// The default install's own folder: adoptable, but its disk location can never change and it
+/// can never be deleted.
+pub(crate) fn is_unmanaged_dir(dir: &str) -> bool {
+    naming::same_folder(dir, UNMANAGED_DIR)
 }
 
 fn suggest_name(dir_name: &str) -> String {
@@ -425,9 +434,16 @@ mod tests {
     }
 
     #[test]
-    fn the_unmanaged_claude_folder_is_never_a_candidate() {
+    fn the_unmanaged_claude_folder_with_evidence_is_a_candidate() {
         let root = tempfile::tempdir().unwrap();
         folder(root.path(), UNMANAGED_DIR, &["ant-did", "ant-device-registry.json"]);
+        assert!(is_adoptable(root.path(), UNMANAGED_DIR, &Registry::default()));
+    }
+
+    #[test]
+    fn the_unmanaged_claude_folder_without_evidence_is_not_a_candidate() {
+        let root = tempfile::tempdir().unwrap();
+        folder(root.path(), UNMANAGED_DIR, &[]);
         assert!(!is_adoptable(root.path(), UNMANAGED_DIR, &Registry::default()));
     }
 
@@ -460,6 +476,7 @@ mod tests {
         assert_eq!(suggest_name("Claude-Work"), "Work");
         assert_eq!(suggest_name("Claude-client-acme"), "client-acme");
         assert_eq!(suggest_name("Claude-"), "Claude-");
+        assert_eq!(suggest_name(UNMANAGED_DIR), UNMANAGED_DIR);
     }
 
     #[cfg(unix)]
@@ -488,6 +505,57 @@ mod tests {
 
             assert!(delete("p_Claude-Test").is_ok());
             assert!(!session_pool::membership::is_member("p_Claude-Test"));
+        });
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn adopting_the_unmanaged_folder_writes_only_the_marker() {
+        let home = tempfile::tempdir().unwrap();
+        with_home(home.path(), || {
+            let root = platform::current().profiles_root().unwrap();
+            fs::create_dir_all(&root).unwrap();
+            folder(&root, UNMANAGED_DIR, &["ant-did", CONFIG_FILE]);
+
+            let profile = adopt(UNMANAGED_DIR, "Default").unwrap();
+
+            assert_eq!(profile.dir, UNMANAGED_DIR);
+            assert!(root.join(UNMANAGED_DIR).join(MARKER_FILE).is_file());
+            let config = fs::read_to_string(root.join(UNMANAGED_DIR).join(CONFIG_FILE)).unwrap();
+            assert_eq!(config, "");
+        });
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn renaming_the_unmanaged_profile_never_moves_its_folder() {
+        let home = tempfile::tempdir().unwrap();
+        with_home(home.path(), || {
+            let root = platform::current().profiles_root().unwrap();
+            fs::create_dir_all(&root).unwrap();
+            folder(&root, UNMANAGED_DIR, &[]);
+            registry::save(&registered(&[UNMANAGED_DIR])).unwrap();
+
+            let renamed = rename(&format!("p_{UNMANAGED_DIR}"), "My Default").unwrap();
+
+            assert_eq!(renamed.name, "My Default");
+            assert_eq!(renamed.dir, UNMANAGED_DIR);
+            assert!(root.join(UNMANAGED_DIR).is_dir());
+        });
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn deleting_the_unmanaged_profile_is_refused() {
+        let home = tempfile::tempdir().unwrap();
+        with_home(home.path(), || {
+            let root = platform::current().profiles_root().unwrap();
+            fs::create_dir_all(&root).unwrap();
+            folder(&root, UNMANAGED_DIR, &[]);
+            registry::save(&registered(&[UNMANAGED_DIR])).unwrap();
+
+            assert!(delete(&format!("p_{UNMANAGED_DIR}")).is_err());
+            assert!(root.join(UNMANAGED_DIR).is_dir());
         });
     }
 }

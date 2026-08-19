@@ -346,7 +346,7 @@ fn delete_profile(app: &AppHandle) -> Tool {
     let app = app.clone();
     tool(
         "delete_profile",
-        "Delete a profile: its folder goes to the Trash and it leaves the registry. Refuses while it is running.",
+        "Delete a profile: its folder goes to the Trash and it leaves the registry. Refuses while it is running, and always refuses for the default Claude install.",
         object(json!({"profile": string_prop("Profile id or name.")}), &["profile"]),
         move |args| {
             let id = resolve_id(args)?;
