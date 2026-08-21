@@ -4,6 +4,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
 
+use crate::admin;
 use crate::core::groups;
 use crate::core::profile;
 use crate::core::registry;
@@ -314,6 +315,11 @@ pub fn open_releases_page() -> CmdResult<()> {
 pub fn open_download_page() -> CmdResult<()> {
     tauri_plugin_opener::open_url(DOWNLOAD_URL, None::<&str>)
         .map_err(|e| CdmError::Io(e.to_string()).into())
+}
+
+#[tauri::command]
+pub fn open_admin_window(app: AppHandle) -> CmdResult<()> {
+    admin::open(&app).map_err(|e| CdmError::Other(e.to_string()).into())
 }
 
 /// `(async)` so the blocking picker never runs on the main thread, which would deadlock it.

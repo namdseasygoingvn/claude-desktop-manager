@@ -263,6 +263,7 @@ export const openReleasesPage = () => call<void>("open_releases_page");
 /** Opens the native picker; resolves to the stored path, or null when the user cancels. */
 export const locateBinary = () => call<string | null>("locate_binary");
 export const openDownloadPage = () => call<void>("open_download_page");
+export const openAdminWindow = () => call<void>("open_admin_window");
 
 export const getSessionSyncStatus = () => call<SessionSyncStatus>("session_sync_status");
 export const joinSessionSync = (id: string) => call<JoinReport>("session_sync_join", { id });

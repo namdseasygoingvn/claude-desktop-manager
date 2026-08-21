@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod admin;
 mod cli;
 mod commands;
 mod core;
@@ -70,6 +71,7 @@ fn run_manager() {
             commands::open_releases_page,
             commands::locate_binary,
             commands::open_download_page,
+            commands::open_admin_window,
             commands::get_general_settings,
             commands::set_open_preferences_at_start,
             commands::set_show_usage_limits,
@@ -115,7 +117,10 @@ fn run_manager() {
             }
             Ok(())
         })
-        .on_window_event(tray::on_window_event)
+        .on_window_event(|w, e| {
+            tray::on_window_event(w, e);
+            admin::on_window_event(w, e);
+        })
         .run(tauri::generate_context!())
         .expect("failed to start Claude Desktop Manager");
 }

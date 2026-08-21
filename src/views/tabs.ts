@@ -1,14 +1,15 @@
-import { Download, Settings, Users, icon, type IconNode } from "./icons";
+import { Download, Settings, Shield, Users, icon, type IconNode } from "./icons";
 import { t } from "./strings";
 
-export type TabId = "profiles" | "updates" | "general";
+export type TabId = "profiles" | "updates" | "general" | "admin";
 
-export const TABS: readonly TabId[] = ["profiles", "updates", "general"];
+export const TABS: readonly TabId[] = ["profiles", "updates", "general", "admin"];
 
 const TAB_ICONS: Record<TabId, IconNode> = {
   profiles: Users,
   updates: Download,
   general: Settings,
+  admin: Shield,
 };
 
 export interface TabsOptions {

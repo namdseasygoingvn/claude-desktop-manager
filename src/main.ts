@@ -20,6 +20,7 @@ import {
   onTrayEvent,
   onUpdateProgress,
   onWindowShown,
+  openAdminWindow,
   openConfig,
   restartApp,
   revealProfile,
@@ -42,6 +43,7 @@ import {
   type Theme,
   type UpdateProgress,
 } from "./api";
+import { renderAdmin } from "./views/admin";
 import { openAdoptSheet, renderAdoptBanner } from "./views/adopt";
 import { openCreateSheet } from "./views/create";
 import { confirmDelete, confirmRemoveFromList } from "./views/delete";
@@ -132,6 +134,7 @@ const state = {
   mcpPortDraft: null as string | null,
   mcpError: null as string | null,
   sessionSync: null as SessionSyncStatus | null,
+  adminError: null as string | null,
 };
 
 document.documentElement.dataset.platform = platform;
@@ -227,6 +230,8 @@ function activePane(): HTMLElement {
       return updatesPane();
     case "general":
       return generalPane();
+    case "admin":
+      return adminPane();
     default:
       return profilesPane();
   }
@@ -260,6 +265,10 @@ function profilesPane(): HTMLElement {
     ]);
   }
   return pane("profiles", manager());
+}
+
+function adminPane(): HTMLElement {
+  return pane("plain", [renderAdmin({ onOpen: () => void openAdmin(), error: state.adminError })]);
 }
 
 function updatesPane(): HTMLElement {
@@ -302,6 +311,19 @@ function generalPane(): HTMLElement {
       },
     }),
   ]);
+}
+
+async function openAdmin(): Promise<void> {
+  try {
+    await openAdminWindow();
+    if (state.adminError) {
+      state.adminError = null;
+      render();
+    }
+  } catch {
+    state.adminError = t.admin.openFailed;
+    render();
+  }
 }
 
 async function loadSettings(): Promise<void> {

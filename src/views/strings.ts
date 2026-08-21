@@ -105,6 +105,7 @@ export const t = {
     profiles: "Profiles",
     updates: "Updates",
     general: "General",
+    admin: "Admin",
     attention: "update pending",
   },
 
@@ -118,6 +119,14 @@ export const t = {
     launchAtLogin: "Open with System startup",
     launchAtLoginHint: `Start ${appName} automatically when you ${nouns.signIn} to ${nouns.machine}.`,
     saveFailed: "Couldn't save that setting.",
+  },
+
+  admin: {
+    heading: "Admin",
+    body: "This opens a separate window showing claude.ai's members page for your organization, with everything else on the page hidden.",
+    hint: "Sign in with the emailed code once — the window stays signed in after that.",
+    open: "Open Members Window",
+    openFailed: "Couldn't open the members window.",
   },
 
   mcp: {
