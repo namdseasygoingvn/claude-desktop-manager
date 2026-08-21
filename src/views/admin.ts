@@ -48,7 +48,13 @@ export function renderAdmin(options: AdminOptions): HTMLElement {
       settleScheduled = false;
       const settled = host.getBoundingClientRect();
       if (settled.width === 0 || settled.height === 0) return;
-      options.onBounds({ x: settled.x, y: settled.y, width: settled.width, height: settled.height });
+      options.onBounds({
+        x: settled.x,
+        y: settled.y,
+        width: settled.width,
+        height: settled.height,
+        viewportHeight: window.innerHeight,
+      });
     });
   });
   observer.observe(host);

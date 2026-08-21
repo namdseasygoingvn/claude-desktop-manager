@@ -68,6 +68,11 @@
       hidden[i].style.removeProperty("display");
       hidden[i].removeAttribute("data-cdm-hidden");
     }
+    var degridded = document.querySelectorAll("[data-cdm-degrid]");
+    for (var j = 0; j < degridded.length; j++) {
+      degridded[j].style.removeProperty("grid-template-columns");
+      degridded[j].removeAttribute("data-cdm-degrid");
+    }
   }
 
   function applyPrune() {
@@ -76,9 +81,6 @@
 
     if (hideableBodyChildren === null) snapshotBodyChildren();
 
-    // Prune only OUTSIDE <main>. A heading-anchored cut inside it hid the members table
-    // itself: the "Members" header row was the heading's first multi-child ancestor, and
-    // the table was that row's sibling. Do not re-narrow below main.
     var chain = buildChain(main);
     for (var i = 0; i < chain.length; i++) {
       var node = chain[i];
@@ -93,6 +95,60 @@
         if (atBody && !hideableBodyChildren.has(sib)) continue;
         hide(sib);
       }
+    }
+
+    pruneInsideMain(main);
+  }
+
+  // Anchor for narrowing below <main>: the outermost <section> wrapping the members table.
+  // A heading-derived anchor once hid the table itself, and anchoring on the table would
+  // orphan its own title/filter/pagination rows — the section is the smallest container
+  // holding them all. No table or no section yet -> null, and applyPrune leaves the inside
+  // of main alone (fail open).
+  function memberSectionAnchor(main) {
+    var table = main.querySelector("table");
+    if (!table) return null;
+    var section = null;
+    var node = table.parentElement;
+    while (node && node !== main) {
+      if (node.tagName === "SECTION") section = node;
+      node = node.parentElement;
+    }
+    return section;
+  }
+
+  // The settings layout is a grid reserving a fixed sidebar column; with the nav hidden the
+  // content reflows into that narrow column, so the template must collapse alongside it.
+  function collapseGrid(parent) {
+    if (parent.hasAttribute("data-cdm-degrid")) return;
+    if (getComputedStyle(parent).display !== "grid") return;
+    parent.style.setProperty("grid-template-columns", "minmax(0px, 1fr)", "important");
+    parent.setAttribute("data-cdm-degrid", "1");
+  }
+
+  function pruneInsideMain(main) {
+    var anchor = memberSectionAnchor(main);
+    if (!anchor) return;
+    var node = anchor;
+    while (node && node !== main) {
+      var parent = node.parentElement;
+      if (!parent) return;
+      var siblings = parent.children;
+      var anyHidden = false;
+      for (var j = 0; j < siblings.length; j++) {
+        var sib = siblings[j];
+        if (sib === node) continue;
+        if (isExempt(sib)) continue;
+        // No snapshot below main (React re-creates this subtree too often for element
+        // identity to hold), so the portal-host defense here is: never hide an empty
+        // container, nor one already hosting exempt UI.
+        if (!isNonEmpty(sib)) continue;
+        if (sib.querySelector(EXEMPT_SELECTOR)) continue;
+        hide(sib);
+        anyHidden = true;
+      }
+      if (anyHidden) collapseGrid(parent);
+      node = parent;
     }
   }
 

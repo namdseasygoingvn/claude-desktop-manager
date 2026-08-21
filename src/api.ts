@@ -269,12 +269,17 @@ export const openReleasesPage = () => call<void>("open_releases_page");
 export const locateBinary = () => call<string | null>("locate_binary");
 export const openDownloadPage = () => call<void>("open_download_page");
 
-/** Logical (CSS) pixels, relative to the window's content area. */
+/**
+ * Logical (CSS) pixels, relative to the window's content area. `viewportHeight` is the height of
+ * the viewport the rect was measured in: the backend needs it to work out the window's title-bar
+ * band, which no window API reports on macOS.
+ */
 export interface ViewBounds {
   x: number;
   y: number;
   width: number;
   height: number;
+  viewportHeight: number;
 }
 export const showAdminView = (bounds: ViewBounds) => call<void>("show_admin_view", { bounds });
 export const hideAdminView = () => call<void>("hide_admin_view");

@@ -330,7 +330,14 @@ function generalPane(): HTMLElement {
 let lastAdminBounds: ViewBounds | null = null;
 
 function sameBounds(a: ViewBounds, b: ViewBounds | null): boolean {
-  return !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+  return (
+    !!b &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.width === b.width &&
+    a.height === b.height &&
+    a.viewportHeight === b.viewportHeight
+  );
 }
 
 /**

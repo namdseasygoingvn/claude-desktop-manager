@@ -35,20 +35,34 @@ pub const FAILED_EVENT: &str = "cdm://admin-webview-failed";
 /// blank forever with no failure signal at all. This is the fallback for that case.
 const LOAD_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Logical (CSS) pixels, relative to the window's content area — what the frontend measures.
+/// Logical (CSS) pixels in the frontend's own viewport: the rect it measured, plus the height of
+/// the viewport it measured in. That height is the only way the title-bar band is knowable — see
+/// `titlebar_inset`.
 #[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Bounds {
     pub x: f64,
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    pub viewport_height: f64,
 }
 
-impl From<Bounds> for Rect {
-    fn from(bounds: Bounds) -> Self {
+/// Logical pixels in the space a child webview is placed in: origin at the window frame's
+/// top-left, which on macOS is above the title bar, not at the content's top edge.
+#[derive(Clone, Copy, Debug)]
+struct Placement {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+impl From<Placement> for Rect {
+    fn from(placement: Placement) -> Self {
         Rect {
-            position: LogicalPosition::new(bounds.x, bounds.y).into(),
-            size: LogicalSize::new(bounds.width, bounds.height).into(),
+            position: LogicalPosition::new(placement.x, placement.y).into(),
+            size: LogicalSize::new(placement.width, placement.height).into(),
         }
     }
 }
@@ -115,42 +129,51 @@ fn watch(app: AppHandle, generation: u64) {
     });
 }
 
-/// Clamps to the window's current logical content area — this alone only stops a Rect from
-/// spilling past the window's own edges, it has no notion of where the tab strip ends. A Rect
-/// that already covers the whole window (x=0, y=0, full width/height — the literal reported bug)
-/// is entirely inside the window and passes through unchanged.
-fn clamp(bounds: Bounds, scale: f64, content: tauri::LogicalSize<f64>) -> tauri::Result<Bounds> {
-    log::info!(
-        target: "cdm::admin",
-        "incoming bounds {bounds:?}, window content {content:?}, scale {scale}"
-    );
-    let x = bounds.x.max(0.0).min(content.width);
-    let y = bounds.y.max(0.0).min(content.height);
-    let width = bounds.width.max(0.0).min(content.width - x);
-    let height = bounds.height.max(0.0).min(content.height - y);
-    let clamped = reject_implausible(Bounds { x, y, width, height })?;
-    log::info!(target: "cdm::admin", "clamped bounds {clamped:?}");
-    Ok(clamped)
+/// The band the window frame keeps above the frontend's viewport: the title bar on macOS, where
+/// tao reports frame and content as the same box (`inner_size == outer_size` and
+/// `inner_position == outer_position`), so a child placed at the frontend's own y lands one
+/// title-bar height too high and buries the tab strip. Zero on platforms whose inner size
+/// already excludes the frame, which is what makes this safe to apply everywhere.
+fn titlebar_inset(window_height: f64, viewport_height: f64) -> f64 {
+    (window_height - viewport_height).max(0.0)
 }
 
-/// This is only a noise floor for sub-pixel/zero-value garbage (e.g. a measurement taken before
-/// layout has settled) — it is NOT a model of where the tab strip ends and does not, by itself,
-/// guarantee a Rect leaves room for it. A Rect with a small but nonzero y (say y=5) still passes
-/// through unchanged; the real defenses against a badly-raced measurement are the frontend
-/// settle-guard in `admin.ts` and the read-back logging in `log_placement`, not this threshold.
-fn reject_implausible(bounds: Bounds) -> tauri::Result<Bounds> {
-    if bounds.y < 1.0 || bounds.width <= 0.0 || bounds.height <= 0.0 {
+/// Translates the frontend's viewport-space rect into the window-frame space the child is placed
+/// in, then clamps it to that frame — which alone only stops a Rect from spilling past the
+/// window's own edges; it has no notion of where the tab strip ends.
+fn clamp(bounds: Bounds, scale: f64, frame: tauri::LogicalSize<f64>) -> tauri::Result<Placement> {
+    let inset = titlebar_inset(frame.height, bounds.viewport_height);
+    log::info!(
+        target: "cdm::admin",
+        "incoming bounds {bounds:?}, window frame {frame:?}, scale {scale}, titlebar inset {inset}"
+    );
+    let x = bounds.x.max(0.0).min(frame.width);
+    let y = (bounds.y + inset).max(0.0).min(frame.height);
+    let width = bounds.width.max(0.0).min(frame.width - x);
+    let height = bounds.height.max(0.0).min(frame.height - y);
+    let placed = reject_implausible(Placement { x, y, width, height }, inset)?;
+    log::info!(target: "cdm::admin", "placed bounds {placed:?}");
+    Ok(placed)
+}
+
+/// A noise floor for sub-pixel/zero-value garbage (e.g. a measurement taken before layout has
+/// settled), measured against `inset` so it keeps meaning "left something above it" in the
+/// frontend's own space — it is NOT a model of where the tab strip ends. A y a pixel or two past
+/// the inset still passes through; the real defenses against a badly-raced measurement are the
+/// frontend settle-guard in `admin.ts` and the read-back logging in `log_placement`.
+fn reject_implausible(placement: Placement, inset: f64) -> tauri::Result<Placement> {
+    if placement.y < inset + 1.0 || placement.width <= 0.0 || placement.height <= 0.0 {
         return Err(tauri::Error::Io(io::Error::new(
             io::ErrorKind::InvalidInput,
             "admin bounds leave no room for the tab strip",
         )));
     }
-    Ok(bounds)
+    Ok(placement)
 }
 
 /// Logs expected vs. actually-applied bounds so a placement mismatch (e.g. AppKit not honoring
 /// the requested frame) is visible in the log rather than only inferred from a screenshot.
-fn log_placement(webview: &Webview, scale: f64, expected: &Bounds) {
+fn log_placement(webview: &Webview, scale: f64, expected: &Placement) {
     match webview.bounds() {
         Ok(actual) => {
             let position = actual.position.to_logical::<f64>(scale);
@@ -174,13 +197,13 @@ pub fn show(app: &AppHandle, bounds: Bounds) -> tauri::Result<()> {
         .get_window(tray::PREFERENCES_WINDOW)
         .ok_or(tauri::Error::WindowNotFound)?;
     let scale = window.scale_factor()?;
-    let content = window.inner_size()?.to_logical::<f64>(scale);
-    let bounds = clamp(bounds, scale, content)?;
+    let frame = window.inner_size()?.to_logical::<f64>(scale);
+    let placement = clamp(bounds, scale, frame)?;
 
     if let Some(webview) = app.get_webview(ADMIN_WEBVIEW) {
-        webview.set_bounds(bounds.into())?;
+        webview.set_bounds(placement.into())?;
         webview.show()?;
-        log_placement(&webview, scale, &bounds);
+        log_placement(&webview, scale, &placement);
         if health().status == Status::Failed {
             let generation = start_loading();
             webview.reload()?;
@@ -231,13 +254,13 @@ pub fn show(app: &AppHandle, bounds: Bounds) -> tauri::Result<()> {
         });
     let webview = window.add_child(
         builder,
-        LogicalPosition::new(bounds.x, bounds.y),
-        LogicalSize::new(bounds.width, bounds.height),
+        LogicalPosition::new(placement.x, placement.y),
+        LogicalSize::new(placement.width, placement.height),
     )?;
     // Redundant re-assert: cheap, and covers the case where the native child doesn't reliably
     // honor the creation-time bounds attribute alone.
-    webview.set_bounds(bounds.into())?;
-    log_placement(&webview, scale, &bounds);
+    webview.set_bounds(placement.into())?;
+    log_placement(&webview, scale, &placement);
     watch(app.clone(), generation);
     Ok(())
 }
