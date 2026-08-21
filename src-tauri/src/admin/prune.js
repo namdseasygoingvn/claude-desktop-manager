@@ -48,15 +48,53 @@
     }
   }
 
+  function applyPrune() {
+    pruneSidebar();
+    pruneMembersTable();
+  }
+
   // The settings sidebar, and nothing else. Every broader rule tried here — body-level siblings,
   // ancestor-chain walks, a section anchor — had to model claude.ai's layout, and hid the members
   // table itself as soon as that layout moved. No nav yet: nothing happens, and the next
   // observer pass tries again.
-  function applyPrune() {
+  function pruneSidebar() {
     var nav = document.querySelector("main nav");
     if (!nav) return;
     hide(nav);
     if (nav.parentElement) collapseGrid(nav.parentElement);
+  }
+
+  // Everything on the members table this app has no use for: the Active/Pending switch, the
+  // row-selection checkboxes, and the Role column. Leaves the Role filter and the search box
+  // alone — they still narrow the rows that do show.
+  function pruneMembersTable() {
+    var segmented = document.querySelector('main [data-cds="SegmentedControl"]');
+    if (segmented) hide(segmented);
+
+    var table = document.querySelector("main table");
+    if (!table) return;
+    var headers = table.querySelectorAll("thead th");
+    for (var i = 0; i < headers.length; i++) {
+      if (unwanted(headers[i])) hideColumn(table, i);
+    }
+  }
+
+  // Matched on the header cell, never on a column index: claude.ai adding or reordering a column
+  // would otherwise silently start hiding a different one. The checkbox column has no label, so
+  // its own control is the mark; Role has nothing but its text.
+  function unwanted(header) {
+    return (
+      (header.textContent || "").trim() === "Role" ||
+      !!header.querySelector('[role="checkbox"]')
+    );
+  }
+
+  function hideColumn(table, index) {
+    var rows = table.rows;
+    for (var i = 0; i < rows.length; i++) {
+      var cell = rows[i].cells[index];
+      if (cell) hide(cell);
+    }
   }
 
   function evaluate() {
