@@ -21,6 +21,8 @@ pub struct Settings {
     pub theme: Theme,
     /// None until the divider is dragged, so the stylesheet owns the starting width alone.
     pub sidebar_width: Option<u32>,
+    /// Group ids whose sidebar section is folded shut; every other group renders open.
+    pub collapsed_groups: Vec<String>,
     pub mcp_enabled: bool,
     pub mcp_port: u16,
     /// Chosen via Locate Claude Desktop; cleared when it stops resolving.
@@ -35,6 +37,7 @@ impl Default for Settings {
             show_usage_limits: true,
             theme: Theme::default(),
             sidebar_width: None,
+            collapsed_groups: Vec::new(),
             // Off: serving the app's state over HTTP is opt-in.
             mcp_enabled: false,
             mcp_port: mcp::DEFAULT_PORT,
@@ -86,6 +89,7 @@ mod tests {
             show_usage_limits: false,
             theme: Theme::Dark,
             sidebar_width: Some(320),
+            collapsed_groups: vec!["g_1".to_string()],
             mcp_enabled: false,
             mcp_port: 20209,
             claude_binary: None,
@@ -93,7 +97,7 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         assert_eq!(
             json,
-            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark","sidebarWidth":320,"mcpEnabled":false,"mcpPort":20209}"#
+            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark","sidebarWidth":320,"collapsedGroups":["g_1"],"mcpEnabled":false,"mcpPort":20209}"#
         );
     }
 

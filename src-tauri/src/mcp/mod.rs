@@ -8,6 +8,8 @@ mod logbuf;
 mod rpc;
 mod server;
 mod tools;
+#[cfg(target_os = "macos")]
+mod tools_debug;
 mod tools_state;
 
 use tauri::AppHandle;

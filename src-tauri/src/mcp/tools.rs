@@ -40,6 +40,8 @@ pub fn build(app: &AppHandle, port: u16) -> Vec<Tool> {
         set_profile_group(app),
     ];
     tools.extend(super::tools_state::all(app));
+    #[cfg(target_os = "macos")]
+    tools.extend(super::tools_debug::all(app));
     tools
 }
 

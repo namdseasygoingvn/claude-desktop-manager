@@ -2,6 +2,7 @@ import {
   appVersion,
   checkForUpdates,
   clearMcpLogs,
+  getCollapsedGroups,
   getGeneralSettings,
   getMcpLogs,
   getMcpStatus,
@@ -25,6 +26,7 @@ import {
   openConfig,
   restartApp,
   revealProfile,
+  setCollapsedGroups,
   setGroupIcon,
   setLaunchAtLogin,
   setMcpEnabled,
@@ -666,6 +668,8 @@ function manager(): HTMLElement[] {
       onToggleGroup: (id) => {
         if (state.collapsed.has(id)) state.collapsed.delete(id);
         else state.collapsed.add(id);
+        // The fold already happened on screen; a failed write is not worth an error.
+        void setCollapsedGroups([...state.collapsed]).catch(() => {});
         render();
       },
       onGroupMenu: (id, x, y) => openMenu(groupMenu(id), { x, y }),
@@ -971,6 +975,13 @@ async function warnIfTranslated(): Promise<void> {
   if (await isTranslated().catch(() => false)) showTranslatedBuild();
 }
 
+async function restoreCollapsed(): Promise<void> {
+  const ids = await getCollapsedGroups().catch(() => [] as string[]);
+  if (ids.length === 0) return;
+  state.collapsed = new Set(ids);
+  render();
+}
+
 document.addEventListener("keydown", onKeydown);
 onWindowShown(() => {
   if (isDialogOpen()) return;
@@ -1000,6 +1011,7 @@ void refresh().then(() => {
     loadSettings(),
     loadMcp(),
     restoreSidebarWidth(),
+    restoreCollapsed(),
     warnIfTranslated(),
   ]);
 });

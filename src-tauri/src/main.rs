@@ -80,6 +80,8 @@ fn run_manager() {
             commands::set_theme,
             commands::get_sidebar_width,
             commands::set_sidebar_width,
+            commands::get_collapsed_groups,
+            commands::set_collapsed_groups,
             commands::list_groups,
             commands::create_group,
             commands::rename_group,

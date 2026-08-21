@@ -257,6 +257,8 @@ export const getMcpLogs = (limit: number) => call<string[]>("get_mcp_logs", { li
 export const clearMcpLogs = () => call<void>("clear_mcp_logs");
 export const getSidebarWidth = () => call<number | null>("get_sidebar_width");
 export const setSidebarWidth = (width: number) => call<void>("set_sidebar_width", { width });
+export const getCollapsedGroups = () => call<string[]>("get_collapsed_groups");
+export const setCollapsedGroups = (ids: string[]) => call<void>("set_collapsed_groups", { ids });
 export const checkForUpdates = () => call<UpdateOutcome>("check_for_updates");
 export const installUpdate = () => call<string>("install_update");
 export const restartApp = () => call<void>("restart_app");

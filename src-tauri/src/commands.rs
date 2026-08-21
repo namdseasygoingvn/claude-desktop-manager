@@ -266,6 +266,18 @@ pub fn set_sidebar_width(width: u32) -> CmdResult<()> {
 }
 
 #[tauri::command]
+pub fn get_collapsed_groups() -> CmdResult<Vec<String>> {
+    Ok(settings::load().collapsed_groups)
+}
+
+#[tauri::command]
+pub fn set_collapsed_groups(ids: Vec<String>) -> CmdResult<()> {
+    let mut current = settings::load();
+    current.collapsed_groups = ids;
+    Ok(settings::save(&current)?)
+}
+
+#[tauri::command]
 pub fn session_sync_status() -> CmdResult<SessionSyncStatus> {
     Ok(SessionSyncStatus { profile_ids: session_pool::status() })
 }

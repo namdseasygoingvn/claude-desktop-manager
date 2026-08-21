@@ -14,32 +14,11 @@
     return location.hostname === "claude.ai" && location.pathname === membersPath;
   }
 
-  var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6, [role='heading']";
   var EXEMPT_SELECTOR = '[role="dialog"], [aria-modal="true"], [role="alert"], [role="status"]';
 
   var hideableBodyChildren = null;
   var applying = false;
   var rafScheduled = false;
-
-  function findAnchor(main) {
-    var headings = main.querySelectorAll(HEADING_SELECTOR);
-    var match = null;
-    var matchCount = 0;
-    for (var i = 0; i < headings.length; i++) {
-      if (/members/i.test(headings[i].textContent || "")) {
-        matchCount++;
-        match = headings[i];
-      }
-    }
-    if (matchCount !== 1) return main;
-
-    var node = match.parentElement;
-    while (node && node !== main) {
-      if (node.children.length > 1) return node;
-      node = node.parentElement;
-    }
-    return main;
-  }
 
   function buildChain(anchor) {
     var chain = [];
@@ -96,7 +75,10 @@
 
     if (hideableBodyChildren === null) snapshotBodyChildren();
 
-    var chain = buildChain(findAnchor(main));
+    // Prune only OUTSIDE <main>. A heading-anchored cut inside it hid the members table
+    // itself: the "Members" header row was the heading's first multi-child ancestor, and
+    // the table was that row's sibling. Do not re-narrow below main.
+    var chain = buildChain(main);
     for (var i = 0; i < chain.length; i++) {
       var node = chain[i];
       var parent = node.parentElement;
