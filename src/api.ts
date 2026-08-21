@@ -278,6 +278,7 @@ export interface ViewBounds {
 }
 export const showAdminView = (bounds: ViewBounds) => call<void>("show_admin_view", { bounds });
 export const hideAdminView = () => call<void>("hide_admin_view");
+export const toggleAdminPrune = () => call<void>("toggle_admin_prune");
 
 export const getSessionSyncStatus = () => call<SessionSyncStatus>("session_sync_status");
 export const joinSessionSync = (id: string) => call<JoinReport>("session_sync_join", { id });

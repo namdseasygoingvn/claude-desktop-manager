@@ -53,6 +53,7 @@ export const shortcuts = {
   editConfig: isMac ? { key: "e", meta: true } : { key: "e", ctrl: true },
   reveal: isMac ? { key: "r", meta: true, shift: true } : { key: "r", ctrl: true, shift: true },
   hideWindow: isMac ? { key: "w", meta: true } : { key: "Escape" },
+  togglePrune: isMac ? { key: "h", meta: true } : { key: "h", ctrl: true },
   moveUp: { key: "ArrowUp", alt: true },
   moveDown: { key: "ArrowDown", alt: true },
 } satisfies Record<string, Shortcut>;

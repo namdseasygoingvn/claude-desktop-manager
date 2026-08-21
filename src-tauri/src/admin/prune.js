@@ -19,6 +19,7 @@
   var hideableBodyChildren = null;
   var applying = false;
   var rafScheduled = false;
+  var enabled = true;
 
   function buildChain(anchor) {
     var chain = [];
@@ -96,7 +97,7 @@
   }
 
   function evaluate() {
-    if (onMembersRoute()) {
+    if (enabled && onMembersRoute()) {
       applyPrune();
     } else {
       restore();
@@ -143,6 +144,28 @@
     scheduleApply();
     return result;
   };
+
+  // Global on purpose: admin::toggle_prune evals this when Cmd/Ctrl+H lands in the main
+  // window (tab strip focused) instead of in this webview.
+  window.__cdmPruneToggle = function () {
+    enabled = !enabled;
+    scheduleApply();
+  };
+
+  // Capture + preventDefault so the shortcut beats both claude.ai's own handlers and, on
+  // macOS, the default app menu's ⌘H Hide item.
+  window.addEventListener(
+    "keydown",
+    function (event) {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.shiftKey || event.altKey) return;
+      if ((event.key || "").toLowerCase() !== "h") return;
+      event.preventDefault();
+      event.stopPropagation();
+      window.__cdmPruneToggle();
+    },
+    true
+  );
 
   window.addEventListener("popstate", scheduleApply);
   scheduleApply();

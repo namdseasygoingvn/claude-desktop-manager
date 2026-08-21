@@ -73,6 +73,7 @@ fn run_manager() {
             commands::open_download_page,
             commands::show_admin_view,
             commands::hide_admin_view,
+            commands::toggle_admin_prune,
             commands::get_general_settings,
             commands::set_open_preferences_at_start,
             commands::set_show_usage_limits,

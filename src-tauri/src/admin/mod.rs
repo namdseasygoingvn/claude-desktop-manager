@@ -249,3 +249,12 @@ pub fn hide(app: &AppHandle) -> tauri::Result<()> {
     }
     Ok(())
 }
+
+/// Forwards Cmd/Ctrl+H when it lands in the main window rather than in the child webview; the
+/// toggle state itself lives in prune.js.
+pub fn toggle_prune(app: &AppHandle) -> tauri::Result<()> {
+    if let Some(webview) = app.get_webview(ADMIN_WEBVIEW) {
+        webview.eval("window.__cdmPruneToggle && window.__cdmPruneToggle();")?;
+    }
+    Ok(())
+}

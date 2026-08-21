@@ -341,6 +341,11 @@ pub fn hide_admin_view(app: AppHandle) -> CmdResult<()> {
     admin::hide(&app).map_err(|e| CdmError::Other(e.to_string()).into())
 }
 
+#[tauri::command]
+pub fn toggle_admin_prune(app: AppHandle) -> CmdResult<()> {
+    admin::toggle_prune(&app).map_err(|e| CdmError::Other(e.to_string()).into())
+}
+
 /// `(async)` so the blocking picker never runs on the main thread, which would deadlock it.
 #[tauri::command(async)]
 pub fn locate_binary(app: AppHandle) -> CmdResult<Option<String>> {

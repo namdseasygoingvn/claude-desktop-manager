@@ -35,6 +35,7 @@ import {
   setShowUsageLimits,
   setTheme,
   showAdminView,
+  toggleAdminPrune,
   type AdoptCandidate,
   type CdmError,
   type GeneralSettings,
@@ -938,6 +939,9 @@ function onKeydown(event: KeyboardEvent): void {
   } else if (matches(event, shortcuts.hideWindow)) {
     event.preventDefault();
     hideWindow();
+  } else if (state.tab === "admin" && matches(event, shortcuts.togglePrune)) {
+    event.preventDefault();
+    void toggleAdminPrune();
   } else if (state.tab !== "profiles") {
     return;
   } else if (!typing && matches(event, shortcuts.reveal)) {
