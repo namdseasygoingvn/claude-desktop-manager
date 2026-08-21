@@ -13,6 +13,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # rust-cache keys on the rustc version, so a floating `stable` cold-rebuilds every
+  # cache each time Rust releases. Bump this deliberately instead.
+  RUST_TOOLCHAIN: "1.98.0"
   RELEASE_BODY: |
     Create, name, and launch isolated Claude Desktop profiles.
 
@@ -36,6 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.bump.outputs.version }}
+      release_id: ${{ steps.draft.outputs.id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,6 +72,29 @@ jobs:
           git tag "$TAG"
           git push --atomic origin main "refs/tags/$TAG"
 
+      # The release is created exactly once, here, so the build matrix never races to
+      # create it. When every build job called tauri-action with only a tagName they
+      # each did their own check-then-create, and the loser died on `already_exists`
+      # before uploading — dropping its platform out of latest.json and breaking that
+      # arch's updater.
+      #
+      # The id, not the tag, is what the build jobs consume: tauri-action's by-tag lookup
+      # cannot see a draft, so a tagName alone would send it right back to creating a
+      # second release for the same tag.
+      #
+      # It starts as a draft: `releases/latest` skips drafts, so a half-finished release
+      # is invisible to the updater until `publish` promotes it.
+      - name: Create the draft release
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ steps.bump.outputs.version }}
+        run: |
+          gh release create "$TAG" --draft --verify-tag \
+            --title "$TAG" --notes "$RELEASE_BODY"
+          echo "id=$(gh release view "$TAG" --json databaseId -q .databaseId)" >> "$GITHUB_OUTPUT"
+
   # Tests are host-arch and platform-agnostic, so one job covers them. No `needs`, so
   # they start alongside the bump instead of inside a build job that then waits on
   # them. --locked fails if Cargo.lock has drifted from Cargo.toml.
@@ -77,6 +104,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       # Test artifacts are dev-profile, so they get a key of their own rather than
       # fighting a build job over its release-profile cache.
@@ -89,37 +118,10 @@ jobs:
         working-directory: src-tauri
         run: cargo test --locked
 
-  # One job creates the release, so the build matrix never races to create it. When
-  # every build job called tauri-action with only a tagName they each did their own
-  # check-then-create, and the loser died on `already_exists` before uploading —
-  # dropping its platform out of latest.json and breaking that arch's updater.
-  #
-  # The id, not the tag, is what the build jobs consume: tauri-action's by-tag lookup
-  # cannot see a draft, so a tagName alone would send it right back to creating a
-  # second release for the same tag.
-  #
-  # It starts as a draft: `releases/latest` skips drafts, so a half-finished release
-  # is invisible to the updater until `publish` promotes it.
-  draft:
-    needs: bump
-    runs-on: ubuntu-latest
-    outputs:
-      id: ${{ steps.draft.outputs.id }}
-    steps:
-      - id: draft
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          TAG: v${{ needs.bump.outputs.version }}
-        run: |
-          gh release create "$TAG" --draft --verify-tag \
-            --title "$TAG" --notes "$RELEASE_BODY"
-          echo "id=$(gh release view "$TAG" --json databaseId -q .databaseId)" >> "$GITHUB_OUTPUT"
-
   # One job per target. The two macOS arches used to be one universal build, which
   # compiled the whole app twice in series; as separate jobs they overlap instead.
   build:
-    needs: [bump, draft]
+    needs: bump
     strategy:
       fail-fast: false
       matrix:
@@ -145,6 +147,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           targets: ${{ matrix.target }}
 
       # Both macOS jobs report the same OS and arch, so without the target in the
@@ -166,7 +169,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          releaseId: ${{ needs.draft.outputs.id }}
+          releaseId: ${{ needs.bump.outputs.release_id }}
           tagName: v${{ needs.bump.outputs.version }}
           releaseBody: ${{ env.RELEASE_BODY }}
           args: --target ${{ matrix.target }}
@@ -189,12 +192,12 @@ jobs:
   # succeeded: a release missing a platform stays a draft, where `releases/latest`
   # cannot serve its half-populated latest.json to the updater.
   publish:
-    needs: [draft, build]
+    needs: [bump, build]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      ID: ${{ needs.draft.outputs.id }}
+      ID: ${{ needs.bump.outputs.release_id }}
     steps:
       # Green builds do not prove latest.json is whole. Each build job reads it,
       # merges its own platform in, and re-uploads, so two finishing within a second
