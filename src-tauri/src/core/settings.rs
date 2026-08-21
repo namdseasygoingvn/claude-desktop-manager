@@ -21,6 +21,8 @@ pub struct Settings {
     pub theme: Theme,
     /// None until the divider is dragged, so the stylesheet owns the starting width alone.
     pub sidebar_width: Option<u32>,
+    /// None until the window is resized, so `tauri.conf.json` owns the starting size alone.
+    pub window_size: Option<WindowSize>,
     /// Group ids whose sidebar section is folded shut; every other group renders open.
     pub collapsed_groups: Vec<String>,
     pub mcp_enabled: bool,
@@ -30,6 +32,14 @@ pub struct Settings {
     pub claude_binary: Option<PathBuf>,
 }
 
+/// Logical pixels, as the user last left the Preferences window. The position is deliberately
+/// not stored: the window stays centred, which is what `tauri.conf.json` already asks for.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct WindowSize {
+    pub width: u32,
+    pub height: u32,
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -37,6 +47,7 @@ impl Default for Settings {
             show_usage_limits: true,
             theme: Theme::default(),
             sidebar_width: None,
+            window_size: None,
             collapsed_groups: Vec::new(),
             // Off: serving the app's state over HTTP is opt-in.
             mcp_enabled: false,
@@ -89,6 +100,7 @@ mod tests {
             show_usage_limits: false,
             theme: Theme::Dark,
             sidebar_width: Some(320),
+            window_size: Some(WindowSize { width: 900, height: 700 }),
             collapsed_groups: vec!["g_1".to_string()],
             mcp_enabled: false,
             mcp_port: 20209,
@@ -97,7 +109,7 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         assert_eq!(
             json,
-            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark","sidebarWidth":320,"collapsedGroups":["g_1"],"mcpEnabled":false,"mcpPort":20209}"#
+            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark","sidebarWidth":320,"windowSize":{"width":900,"height":700},"collapsedGroups":["g_1"],"mcpEnabled":false,"mcpPort":20209}"#
         );
     }
 
@@ -105,6 +117,12 @@ mod tests {
     fn a_file_from_before_the_divider_existed_has_no_width() {
         let parsed: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
         assert_eq!(parsed.sidebar_width, None);
+    }
+
+    #[test]
+    fn a_file_from_before_the_window_was_remembered_has_no_size() {
+        let parsed: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
+        assert_eq!(parsed.window_size, None);
     }
 
     #[test]

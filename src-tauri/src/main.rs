@@ -9,6 +9,7 @@ mod platform;
 mod tray;
 mod tray_icons;
 mod updater;
+mod window_size;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -114,6 +115,7 @@ fn run_manager() {
             let stored = core::settings::load();
             // Before any show(): a frame that repaints after the window is up is a visible flash.
             let _ = tray::apply_theme(app.handle(), stored.theme);
+            window_size::restore(app.handle(), stored.window_size);
             // Last, so the tray already exists behind the window the user is about to see.
             // Failing to show is not worth refusing to start over: the tray still works.
             if stored.open_preferences_at_start {

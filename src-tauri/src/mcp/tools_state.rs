@@ -30,7 +30,7 @@ fn get_settings(app: &AppHandle) -> Tool {
     let app = app.clone();
     tool(
         "get_settings",
-        "Every stored preference — theme, open-at-start, usage limits, sidebar width, and the MCP debug server — plus the login item the OS owns and the file the rest live in.",
+        "Every stored preference — theme, open-at-start, usage limits, sidebar width, window size, and the MCP debug server — plus the login item the OS owns and the file the rest live in.",
         no_args(),
         move |_| {
             let mut value = to_value(&settings::load())?;

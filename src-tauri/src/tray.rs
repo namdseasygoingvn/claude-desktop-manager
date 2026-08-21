@@ -15,6 +15,7 @@ use crate::core::types::ProfileStatus;
 use crate::core::usage::Usage;
 use crate::platform;
 use crate::tray_icons;
+use crate::window_size;
 
 pub const TRAY_ID: &str = "cdm-tray";
 pub const PREFERENCES_WINDOW: &str = "main";
@@ -115,19 +116,23 @@ pub fn show_preferences(app: &AppHandle) -> tauri::Result<()> {
 /// Wire into `Builder::on_window_event`. `WindowEvent` and `CloseRequested` are both
 /// `#[non_exhaustive]`, so this cannot be an exhaustive match.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
-    if let WindowEvent::CloseRequested { api, .. } = event {
-        if window.label() != PREFERENCES_WINDOW {
-            return;
-        }
-        api.prevent_close();
-        let _ = window.hide();
+    if window.label() != PREFERENCES_WINDOW {
+        return;
+    }
+    match event {
+        WindowEvent::Resized(_) => window_size::remember(window),
+        WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
+            let _ = window.hide();
 
-        #[cfg(target_os = "macos")]
-        {
-            let _ = window
-                .app_handle()
-                .set_activation_policy(tauri::ActivationPolicy::Accessory);
+            #[cfg(target_os = "macos")]
+            {
+                let _ = window
+                    .app_handle()
+                    .set_activation_policy(tauri::ActivationPolicy::Accessory);
+            }
         }
+        _ => {}
     }
 }
 
