@@ -133,12 +133,20 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
+    # rust-cache restores only on an exact Cargo.toml/Cargo.lock hash match, so any
+    # dependency change cold-builds all ~350 crates. sccache caches individual rustc
+    # invocations in the same GHA cache, so those runs recompile only what changed.
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
     steps:
       # The tag, not the branch: all three jobs build the same commit even if
       # something lands on main while they run.
       - uses: actions/checkout@v5
         with:
           ref: v${{ needs.bump.outputs.version }}
+
+      - uses: mozilla-actions/sccache-action@v0.0.11
 
       - uses: actions/setup-node@v5
         with:
