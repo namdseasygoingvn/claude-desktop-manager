@@ -6,6 +6,7 @@ import {
   getMcpLogs,
   getMcpStatus,
   getSessionSyncStatus,
+  hideAdminView,
   hideWindow,
   installUpdate,
   isTranslated,
@@ -20,7 +21,6 @@ import {
   onTrayEvent,
   onUpdateProgress,
   onWindowShown,
-  openAdminWindow,
   openConfig,
   restartApp,
   revealProfile,
@@ -31,6 +31,7 @@ import {
   setOpenPreferencesAtStart,
   setShowUsageLimits,
   setTheme,
+  showAdminView,
   type AdoptCandidate,
   type CdmError,
   type GeneralSettings,
@@ -42,6 +43,7 @@ import {
   type SessionSyncStatus,
   type Theme,
   type UpdateProgress,
+  type ViewBounds,
 } from "./api";
 import { renderAdmin } from "./views/admin";
 import { openAdoptSheet, renderAdoptBanner } from "./views/adopt";
@@ -238,6 +240,7 @@ function activePane(): HTMLElement {
 }
 
 function selectTab(tab: TabId): void {
+  if (state.tab === "admin" && tab !== "admin") void hideAdmin();
   state.tab = tab;
   syncMcpPolling();
   syncUsagePolling();
@@ -268,7 +271,9 @@ function profilesPane(): HTMLElement {
 }
 
 function adminPane(): HTMLElement {
-  return pane("plain", [renderAdmin({ onOpen: () => void openAdmin(), error: state.adminError })]);
+  return pane("plain", [
+    renderAdmin({ onBounds: (bounds) => void showAdmin(bounds), error: state.adminError }),
+  ]);
 }
 
 function updatesPane(): HTMLElement {
@@ -313,17 +318,28 @@ function generalPane(): HTMLElement {
   ]);
 }
 
-async function openAdmin(): Promise<void> {
+async function showAdmin(bounds: ViewBounds): Promise<void> {
   try {
-    await openAdminWindow();
+    await showAdminView(bounds);
+    // The user may have left the tab while the call was in flight.
+    if (state.tab !== "admin") {
+      void hideAdmin();
+      return;
+    }
     if (state.adminError) {
       state.adminError = null;
       render();
     }
   } catch {
-    state.adminError = t.admin.openFailed;
+    // The error render rebuilds the pane, whose observer fires again: only render once.
+    if (state.adminError) return;
+    state.adminError = t.admin.loadFailed;
     render();
   }
+}
+
+function hideAdmin(): Promise<void> {
+  return hideAdminView().catch(() => {});
 }
 
 async function loadSettings(): Promise<void> {

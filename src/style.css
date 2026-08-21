@@ -1144,6 +1144,23 @@ button {
   margin-top: 10px;
 }
 
+/* Admin — the members webview is a native child view laid over .admin-embed's box. */
+
+.admin-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-pane .settings-status {
+  margin: 10px 16px 0;
+}
+
+.admin-embed {
+  flex: 1;
+}
+
 /* Dialogs — sheets on macOS, centred modal windows on Windows. */
 
 .scrim {

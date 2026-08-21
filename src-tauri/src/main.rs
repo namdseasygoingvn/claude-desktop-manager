@@ -71,7 +71,8 @@ fn run_manager() {
             commands::open_releases_page,
             commands::locate_binary,
             commands::open_download_page,
-            commands::open_admin_window,
+            commands::show_admin_view,
+            commands::hide_admin_view,
             commands::get_general_settings,
             commands::set_open_preferences_at_start,
             commands::set_show_usage_limits,
@@ -117,10 +118,7 @@ fn run_manager() {
             }
             Ok(())
         })
-        .on_window_event(|w, e| {
-            tray::on_window_event(w, e);
-            admin::on_window_event(w, e);
-        })
+        .on_window_event(tray::on_window_event)
         .run(tauri::generate_context!())
         .expect("failed to start Claude Desktop Manager");
 }

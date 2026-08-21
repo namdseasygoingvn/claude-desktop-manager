@@ -1,24 +1,45 @@
-//! The `admin` window: a locked-down webview onto claude.ai's org-members page.
+//! The `admin` webview: a locked-down view of claude.ai's org-members page, embedded as a
+//! native child of the Preferences window over the Admin tab's pane.
 
-use tauri::{AppHandle, Manager, Window, WindowEvent};
+use serde::Deserialize;
+use tauri::webview::WebviewBuilder;
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Rect, WebviewUrl};
 
 use crate::tray;
 
-pub const ADMIN_WINDOW: &str = "admin";
+pub const ADMIN_WEBVIEW: &str = "admin";
 pub const MEMBERS_PATH: &str = "/admin-settings/members";
 
-pub fn open(app: &AppHandle) -> tauri::Result<()> {
-    // Regular before show(): otherwise the window can come up behind the frontmost app.
-    #[cfg(target_os = "macos")]
-    {
-        app.set_activation_policy(tauri::ActivationPolicy::Regular)?;
-    }
+/// Logical (CSS) pixels, relative to the window's content area — what the frontend measures.
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub struct Bounds {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
 
-    if let Some(window) = app.get_webview_window(ADMIN_WINDOW) {
-        window.show()?;
-        window.set_focus()?;
+impl From<Bounds> for Rect {
+    fn from(bounds: Bounds) -> Self {
+        Rect {
+            position: LogicalPosition::new(bounds.x, bounds.y).into(),
+            size: LogicalSize::new(bounds.width, bounds.height).into(),
+        }
+    }
+}
+
+/// Idempotent: an existing webview is re-positioned and re-shown, not rebuilt. The child does
+/// not track the window's size on its own; the frontend re-sends bounds on every layout change.
+pub fn show(app: &AppHandle, bounds: Bounds) -> tauri::Result<()> {
+    if let Some(webview) = app.get_webview(ADMIN_WEBVIEW) {
+        webview.set_bounds(bounds.into())?;
+        webview.show()?;
         return Ok(());
     }
+
+    let window = app
+        .get_window(tray::PREFERENCES_WINDOW)
+        .ok_or(tauri::Error::WindowNotFound)?;
 
     let url = tauri::Url::parse(&format!("https://claude.ai{MEMBERS_PATH}"))
         .map_err(tauri::Error::InvalidUrl)?;
@@ -37,31 +58,20 @@ pub fn open(app: &AppHandle) -> tauri::Result<()> {
                 .is_some_and(|host| host == "claude.ai" || host.ends_with(".claude.ai"))
     };
 
-    tauri::WebviewWindowBuilder::new(app, ADMIN_WINDOW, tauri::WebviewUrl::External(url))
-        .title("Claude Members")
-        .inner_size(980.0, 720.0)
+    let builder = WebviewBuilder::new(ADMIN_WEBVIEW, WebviewUrl::External(url))
         .initialization_script(init_script)
-        .on_navigation(allowed)
-        .build()?;
+        .on_navigation(allowed);
+    window.add_child(
+        builder,
+        LogicalPosition::new(bounds.x, bounds.y),
+        LogicalSize::new(bounds.width, bounds.height),
+    )?;
     Ok(())
 }
 
-/// Wire into `Builder::on_window_event` alongside `tray::on_window_event`.
-pub fn on_window_event(window: &Window, event: &WindowEvent) {
-    if let WindowEvent::Destroyed = event {
-        if window.label() != ADMIN_WINDOW {
-            return;
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            let app = window.app_handle();
-            let main_visible = app
-                .get_webview_window(tray::PREFERENCES_WINDOW)
-                .is_some_and(|w| w.is_visible().unwrap_or(false));
-            if !main_visible {
-                let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            }
-        }
+pub fn hide(app: &AppHandle) -> tauri::Result<()> {
+    if let Some(webview) = app.get_webview(ADMIN_WEBVIEW) {
+        webview.hide()?;
     }
+    Ok(())
 }

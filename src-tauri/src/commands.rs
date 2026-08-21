@@ -317,9 +317,16 @@ pub fn open_download_page() -> CmdResult<()> {
         .map_err(|e| CdmError::Io(e.to_string()).into())
 }
 
+/// `(async)`: `add_child` blocks on a main-thread round trip, which a sync command would deadlock
+/// on Windows.
+#[tauri::command(async)]
+pub fn show_admin_view(app: AppHandle, bounds: admin::Bounds) -> CmdResult<()> {
+    admin::show(&app, bounds).map_err(|e| CdmError::Other(e.to_string()).into())
+}
+
 #[tauri::command]
-pub fn open_admin_window(app: AppHandle) -> CmdResult<()> {
-    admin::open(&app).map_err(|e| CdmError::Other(e.to_string()).into())
+pub fn hide_admin_view(app: AppHandle) -> CmdResult<()> {
+    admin::hide(&app).map_err(|e| CdmError::Other(e.to_string()).into())
 }
 
 /// `(async)` so the blocking picker never runs on the main thread, which would deadlock it.

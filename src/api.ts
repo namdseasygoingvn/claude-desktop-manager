@@ -263,7 +263,16 @@ export const openReleasesPage = () => call<void>("open_releases_page");
 /** Opens the native picker; resolves to the stored path, or null when the user cancels. */
 export const locateBinary = () => call<string | null>("locate_binary");
 export const openDownloadPage = () => call<void>("open_download_page");
-export const openAdminWindow = () => call<void>("open_admin_window");
+
+/** Logical (CSS) pixels, relative to the window's content area. */
+export interface ViewBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+export const showAdminView = (bounds: ViewBounds) => call<void>("show_admin_view", { bounds });
+export const hideAdminView = () => call<void>("hide_admin_view");
 
 export const getSessionSyncStatus = () => call<SessionSyncStatus>("session_sync_status");
 export const joinSessionSync = (id: string) => call<JoinReport>("session_sync_join", { id });

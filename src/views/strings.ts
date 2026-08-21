@@ -122,9 +122,7 @@ export const t = {
   },
 
   admin: {
-    heading: "Admin",
-    open: "Open Members Window",
-    openFailed: "Couldn't open the members window.",
+    loadFailed: "Couldn't load the members page.",
   },
 
   mcp: {

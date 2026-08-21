@@ -7,7 +7,6 @@ use tauri::menu::{
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, Window, WindowEvent, Wry};
 
-use crate::admin;
 use crate::core::groups::{self, Group, GroupIcon};
 use crate::core::profile;
 use crate::core::settings;
@@ -125,16 +124,9 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
 
         #[cfg(target_os = "macos")]
         {
-            let admin_visible = window
+            let _ = window
                 .app_handle()
-                .get_webview_window(admin::ADMIN_WINDOW)
-                .map(|w| w.is_visible().unwrap_or(false))
-                .unwrap_or(false);
-            if !admin_visible {
-                let _ = window
-                    .app_handle()
-                    .set_activation_policy(tauri::ActivationPolicy::Accessory);
-            }
+                .set_activation_policy(tauri::ActivationPolicy::Accessory);
         }
     }
 }
