@@ -14,45 +14,9 @@
     return location.hostname === "claude.ai" && location.pathname === membersPath;
   }
 
-  var EXEMPT_SELECTOR = '[role="dialog"], [aria-modal="true"], [role="alert"], [role="status"]';
-
-  var hideableBodyChildren = null;
+  var enabled = true;
   var applying = false;
   var rafScheduled = false;
-  var enabled = true;
-
-  function buildChain(anchor) {
-    var chain = [];
-    var node = anchor;
-    while (node && node.parentElement) {
-      chain.push(node);
-      if (node.parentElement === document.body) break;
-      node = node.parentElement;
-    }
-    return chain;
-  }
-
-  function isExempt(el) {
-    return !!(el.matches && el.matches(EXEMPT_SELECTOR));
-  }
-
-  function isNonEmpty(el) {
-    if (el.children && el.children.length > 0) return true;
-    return /\S/.test(el.textContent || "");
-  }
-
-  // Snapshot taken once, at the first successful pass: a body-level container that's empty
-  // here may still be a portal host claude.ai mounts a dialog into later, so only containers
-  // already carrying real content at snapshot time are ever eligible to hide.
-  function snapshotBodyChildren() {
-    hideableBodyChildren = new WeakSet();
-    var children = document.body.children;
-    for (var i = 0; i < children.length; i++) {
-      var child = children[i];
-      if (isExempt(child)) continue;
-      if (isNonEmpty(child)) hideableBodyChildren.add(child);
-    }
-  }
 
   function hide(el) {
     if (el.hasAttribute("data-cdm-hidden")) return;
@@ -60,8 +24,17 @@
     el.setAttribute("data-cdm-hidden", "1");
   }
 
-  // Inverse of hide(): run whenever the route leaves members, so a login form or nav that got
-  // hidden while on the members route never stays hidden after navigating away.
+  // The settings layout is a grid reserving a fixed column for the sidebar; with the nav hidden
+  // the content would reflow into that narrow column, so the template collapses alongside it.
+  function collapseGrid(parent) {
+    if (parent.hasAttribute("data-cdm-degrid")) return;
+    if (getComputedStyle(parent).display !== "grid") return;
+    parent.style.setProperty("grid-template-columns", "minmax(0px, 1fr)", "important");
+    parent.setAttribute("data-cdm-degrid", "1");
+  }
+
+  // Inverse of hide() and collapseGrid(): runs whenever the route leaves members or the toggle
+  // goes off, so nothing stays hidden while this script is not meant to be in charge.
   function restore() {
     var hidden = document.querySelectorAll("[data-cdm-hidden]");
     for (var i = 0; i < hidden.length; i++) {
@@ -75,81 +48,15 @@
     }
   }
 
+  // The settings sidebar, and nothing else. Every broader rule tried here — body-level siblings,
+  // ancestor-chain walks, a section anchor — had to model claude.ai's layout, and hid the members
+  // table itself as soon as that layout moved. No nav yet: nothing happens, and the next
+  // observer pass tries again.
   function applyPrune() {
-    var main = document.querySelector("main");
-    if (!main) return;
-
-    if (hideableBodyChildren === null) snapshotBodyChildren();
-
-    var chain = buildChain(main);
-    for (var i = 0; i < chain.length; i++) {
-      var node = chain[i];
-      var parent = node.parentElement;
-      if (!parent) continue;
-      var atBody = parent === document.body;
-      var siblings = parent.children;
-      for (var j = 0; j < siblings.length; j++) {
-        var sib = siblings[j];
-        if (sib === node) continue;
-        if (isExempt(sib)) continue;
-        if (atBody && !hideableBodyChildren.has(sib)) continue;
-        hide(sib);
-      }
-    }
-
-    pruneInsideMain(main);
-  }
-
-  // Anchor for narrowing below <main>: the outermost <section> wrapping the members table.
-  // A heading-derived anchor once hid the table itself, and anchoring on the table would
-  // orphan its own title/filter/pagination rows — the section is the smallest container
-  // holding them all. No table or no section yet -> null, and applyPrune leaves the inside
-  // of main alone (fail open).
-  function memberSectionAnchor(main) {
-    var table = main.querySelector("table");
-    if (!table) return null;
-    var section = null;
-    var node = table.parentElement;
-    while (node && node !== main) {
-      if (node.tagName === "SECTION") section = node;
-      node = node.parentElement;
-    }
-    return section;
-  }
-
-  // The settings layout is a grid reserving a fixed sidebar column; with the nav hidden the
-  // content reflows into that narrow column, so the template must collapse alongside it.
-  function collapseGrid(parent) {
-    if (parent.hasAttribute("data-cdm-degrid")) return;
-    if (getComputedStyle(parent).display !== "grid") return;
-    parent.style.setProperty("grid-template-columns", "minmax(0px, 1fr)", "important");
-    parent.setAttribute("data-cdm-degrid", "1");
-  }
-
-  function pruneInsideMain(main) {
-    var anchor = memberSectionAnchor(main);
-    if (!anchor) return;
-    var node = anchor;
-    while (node && node !== main) {
-      var parent = node.parentElement;
-      if (!parent) return;
-      var siblings = parent.children;
-      var anyHidden = false;
-      for (var j = 0; j < siblings.length; j++) {
-        var sib = siblings[j];
-        if (sib === node) continue;
-        if (isExempt(sib)) continue;
-        // No snapshot below main (React re-creates this subtree too often for element
-        // identity to hold), so the portal-host defense here is: never hide an empty
-        // container, nor one already hosting exempt UI.
-        if (!isNonEmpty(sib)) continue;
-        if (sib.querySelector(EXEMPT_SELECTOR)) continue;
-        hide(sib);
-        anyHidden = true;
-      }
-      if (anyHidden) collapseGrid(parent);
-      node = parent;
-    }
+    var nav = document.querySelector("main nav");
+    if (!nav) return;
+    hide(nav);
+    if (nav.parentElement) collapseGrid(nav.parentElement);
   }
 
   function evaluate() {
@@ -176,7 +83,7 @@
     });
   }
 
-  // Doubles as the initial waiter: main doesn't exist at document start, so the first
+  // Doubles as the initial waiter: the nav doesn't exist at document start, so the first
   // successful pass runs once React mounts it and this observer sees the insertion.
   var observer = new MutationObserver(function () {
     if (!applying) scheduleApply();
