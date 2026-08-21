@@ -6,7 +6,13 @@
 
   var membersPath = window.__CDM_MEMBERS_PATH;
   if (typeof membersPath !== "string") return;
-  if (location.hostname !== "claude.ai" || location.pathname !== membersPath) return;
+
+  // Re-checked on every pass, not just at script load: claude.ai is a SPA, so the route can
+  // change (e.g. login -> members, or members -> some other admin page) without a fresh
+  // document and a fresh run of this script.
+  function onMembersRoute() {
+    return location.hostname === "claude.ai" && location.pathname === membersPath;
+  }
 
   var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6, [role='heading']";
   var EXEMPT_SELECTOR = '[role="dialog"], [aria-modal="true"], [role="alert"], [role="status"]';
@@ -74,6 +80,16 @@
     el.setAttribute("data-cdm-hidden", "1");
   }
 
+  // Inverse of hide(): run whenever the route leaves members, so a login form or nav that got
+  // hidden while on the members route never stays hidden after navigating away.
+  function restore() {
+    var hidden = document.querySelectorAll("[data-cdm-hidden]");
+    for (var i = 0; i < hidden.length; i++) {
+      hidden[i].style.removeProperty("display");
+      hidden[i].removeAttribute("data-cdm-hidden");
+    }
+  }
+
   function applyPrune() {
     var main = document.querySelector("main");
     if (!main) return;
@@ -97,13 +113,21 @@
     }
   }
 
+  function evaluate() {
+    if (onMembersRoute()) {
+      applyPrune();
+    } else {
+      restore();
+    }
+  }
+
   function scheduleApply() {
     if (rafScheduled) return;
     rafScheduled = true;
     requestAnimationFrame(function () {
       rafScheduled = false;
       applying = true;
-      applyPrune();
+      evaluate();
       // Deferred to a microtask so it runs after any MutationObserver callback queued by this
       // pass's own hides — reset synchronously instead and that callback would still see
       // applying === false, scheduling an immediate, unnecessary re-pass.
@@ -119,4 +143,25 @@
     if (!applying) scheduleApply();
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // claude.ai's router changes location via pushState/replaceState, which fires neither
+  // popstate nor (necessarily) a DOM mutation this observer would catch synchronously.
+  // Formerly route_lock.js's hooks; kept here, without any forced navigation, purely so
+  // evaluate() re-runs on every route change.
+  var originalPushState = history.pushState;
+  history.pushState = function () {
+    var result = originalPushState.apply(this, arguments);
+    scheduleApply();
+    return result;
+  };
+
+  var originalReplaceState = history.replaceState;
+  history.replaceState = function () {
+    var result = originalReplaceState.apply(this, arguments);
+    scheduleApply();
+    return result;
+  };
+
+  window.addEventListener("popstate", scheduleApply);
+  scheduleApply();
 })();

@@ -6,10 +6,23 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::webview::{PageLoadEvent, WebviewBuilder};
-use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, WebviewUrl, Window};
+use tauri::webview::{PageLoadEvent, PageLoadPayload, WebviewBuilder};
+use tauri::{
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, Webview, WebviewUrl,
+};
 
 use crate::tray;
+
+/// Base domains claude.ai's own login flow may redirect through (SSO/IdP hops land on
+/// `anthropic.com`, not just `claude.ai`). A host is allowed if it equals a base or is one of
+/// its subdomains.
+const ALLOWED_HOSTS: [&str; 2] = ["claude.ai", "anthropic.com"];
+
+/// `{scheme}://{host}{path}` — deliberately omits query and fragment so nothing sensitive
+/// (auth tokens, codes) ever reaches the log.
+fn origin_and_path(url: &tauri::Url) -> String {
+    format!("{}://{}{}", url.scheme(), url.host_str().unwrap_or(""), url.path())
+}
 
 pub const ADMIN_WEBVIEW: &str = "admin";
 pub const MEMBERS_PATH: &str = "/admin-settings/members";
@@ -81,6 +94,7 @@ fn mark_ready() {
 
 /// Wired into `Builder::on_web_content_process_terminate` in `main.rs` for this webview's label.
 pub fn mark_terminated(app: &AppHandle) {
+    log::warn!(target: "cdm::admin", "content process terminated");
     health().status = Status::Failed;
     let _ = app.emit(FAILED_EVENT, ());
 }
@@ -95,6 +109,7 @@ fn watch(app: AppHandle, generation: u64) {
         if health.generation == generation && health.status == Status::Loading {
             health.status = Status::Failed;
             drop(health);
+            log::warn!(target: "cdm::admin", "load timed out after {LOAD_TIMEOUT:?}, generation {generation}");
             let _ = app.emit(FAILED_EVENT, ());
         }
     });
@@ -104,28 +119,50 @@ fn watch(app: AppHandle, generation: u64) {
 /// spilling past the window's own edges, it has no notion of where the tab strip ends. A Rect
 /// that already covers the whole window (x=0, y=0, full width/height — the literal reported bug)
 /// is entirely inside the window and passes through unchanged.
-fn clamp(bounds: Bounds, window: &Window) -> tauri::Result<Bounds> {
-    let scale = window.scale_factor()?;
-    let content = window.inner_size()?.to_logical::<f64>(scale);
+fn clamp(bounds: Bounds, scale: f64, content: tauri::LogicalSize<f64>) -> tauri::Result<Bounds> {
+    log::info!(
+        target: "cdm::admin",
+        "incoming bounds {bounds:?}, window content {content:?}, scale {scale}"
+    );
     let x = bounds.x.max(0.0).min(content.width);
     let y = bounds.y.max(0.0).min(content.height);
     let width = bounds.width.max(0.0).min(content.width - x);
     let height = bounds.height.max(0.0).min(content.height - y);
-    reject_implausible(Bounds { x, y, width, height })
+    let clamped = reject_implausible(Bounds { x, y, width, height })?;
+    log::info!(target: "cdm::admin", "clamped bounds {clamped:?}");
+    Ok(clamped)
 }
 
-/// The tab strip always renders above the admin pane (`renderAdmin` in `admin.ts` measures a
-/// host below it), so a legitimate Rect never starts flush with y=0. This is the actual backstop
-/// against the reported "covers the whole window, including the tab bar" bug: reject a Rect that
-/// violates that invariant instead of clamping it through unchanged.
+/// This is only a noise floor for sub-pixel/zero-value garbage (e.g. a measurement taken before
+/// layout has settled) — it is NOT a model of where the tab strip ends and does not, by itself,
+/// guarantee a Rect leaves room for it. A Rect with a small but nonzero y (say y=5) still passes
+/// through unchanged; the real defenses against a badly-raced measurement are the frontend
+/// settle-guard in `admin.ts` and the read-back logging in `log_placement`, not this threshold.
 fn reject_implausible(bounds: Bounds) -> tauri::Result<Bounds> {
-    if bounds.y <= 0.0 || bounds.width <= 0.0 || bounds.height <= 0.0 {
+    if bounds.y < 1.0 || bounds.width <= 0.0 || bounds.height <= 0.0 {
         return Err(tauri::Error::Io(io::Error::new(
             io::ErrorKind::InvalidInput,
             "admin bounds leave no room for the tab strip",
         )));
     }
     Ok(bounds)
+}
+
+/// Logs expected vs. actually-applied bounds so a placement mismatch (e.g. AppKit not honoring
+/// the requested frame) is visible in the log rather than only inferred from a screenshot.
+fn log_placement(webview: &Webview, scale: f64, expected: &Bounds) {
+    match webview.bounds() {
+        Ok(actual) => {
+            let position = actual.position.to_logical::<f64>(scale);
+            let size = actual.size.to_logical::<f64>(scale);
+            log::info!(
+                target: "cdm::admin",
+                "placement expected {expected:?}, actual x={} y={} width={} height={}",
+                position.x, position.y, size.width, size.height
+            );
+        }
+        Err(err) => log::warn!(target: "cdm::admin", "could not read back webview bounds: {err}"),
+    }
 }
 
 /// Idempotent: an existing webview is re-positioned and re-shown, not rebuilt — unless its
@@ -136,11 +173,14 @@ pub fn show(app: &AppHandle, bounds: Bounds) -> tauri::Result<()> {
     let window = app
         .get_window(tray::PREFERENCES_WINDOW)
         .ok_or(tauri::Error::WindowNotFound)?;
-    let bounds = clamp(bounds, &window)?;
+    let scale = window.scale_factor()?;
+    let content = window.inner_size()?.to_logical::<f64>(scale);
+    let bounds = clamp(bounds, scale, content)?;
 
     if let Some(webview) = app.get_webview(ADMIN_WEBVIEW) {
         webview.set_bounds(bounds.into())?;
         webview.show()?;
+        log_placement(&webview, scale, &bounds);
         if health().status == Status::Failed {
             let generation = start_loading();
             webview.reload()?;
@@ -152,39 +192,58 @@ pub fn show(app: &AppHandle, bounds: Bounds) -> tauri::Result<()> {
     let url = tauri::Url::parse(&format!("https://claude.ai{MEMBERS_PATH}"))
         .map_err(tauri::Error::InvalidUrl)?;
     let preamble = format!("window.__CDM_MEMBERS_PATH = {MEMBERS_PATH:?};");
-    // One call, not three: wry's handling of multiple `initialization_script` registrations is
-    // unverified against 2.11.5, and both files read the preamble's global at document-start —
-    // if only one call survived, the preamble would be gone and both would silently fail open.
-    // Order matters (preamble must define the global first); both files end statements with
-    // `;`, so joining with `\n` is safe.
-    let init_script = [preamble.as_str(), include_str!("route_lock.js"), include_str!("prune.js")].join("\n");
+    // One call, not two: wry's handling of multiple `initialization_script` registrations is
+    // unverified against 2.11.5, and prune.js reads the preamble's global at document-start —
+    // if only one call survived, the preamble would be gone and prune.js would silently fail
+    // open. Order matters (preamble must define the global first); the file ends statements
+    // with `;`, so joining with `\n` is safe.
+    let init_script = [preamble.as_str(), include_str!("prune.js")].join("\n");
 
     let allowed = |url: &tauri::Url| {
-        url.scheme() == "https"
-            && url
-                .host_str()
-                .is_some_and(|host| host == "claude.ai" || host.ends_with(".claude.ai"))
+        let is_allowed = url.scheme() == "https"
+            && url.host_str().is_some_and(|host| {
+                ALLOWED_HOSTS
+                    .iter()
+                    .any(|base| host == *base || host.ends_with(&format!(".{base}")))
+            });
+        if is_allowed {
+            log::info!(target: "cdm::admin", "navigation allowed: {}", origin_and_path(url));
+        } else {
+            log::warn!(target: "cdm::admin", "navigation denied: {}", origin_and_path(url));
+        }
+        is_allowed
     };
 
     let generation = start_loading();
     let builder = WebviewBuilder::new(ADMIN_WEBVIEW, WebviewUrl::External(url))
         .initialization_script(init_script)
         .on_navigation(allowed)
-        .on_page_load(|_webview, payload| {
-            if payload.event() == PageLoadEvent::Finished {
-                mark_ready();
+        .on_page_load(|_webview, payload: PageLoadPayload| {
+            match payload.event() {
+                PageLoadEvent::Started => {
+                    log::info!(target: "cdm::admin", "page load started: {}", origin_and_path(payload.url()));
+                }
+                PageLoadEvent::Finished => {
+                    log::info!(target: "cdm::admin", "page load finished: {}", origin_and_path(payload.url()));
+                    mark_ready();
+                }
             }
         });
-    window.add_child(
+    let webview = window.add_child(
         builder,
         LogicalPosition::new(bounds.x, bounds.y),
         LogicalSize::new(bounds.width, bounds.height),
     )?;
+    // Redundant re-assert: cheap, and covers the case where the native child doesn't reliably
+    // honor the creation-time bounds attribute alone.
+    webview.set_bounds(bounds.into())?;
+    log_placement(&webview, scale, &bounds);
     watch(app.clone(), generation);
     Ok(())
 }
 
 pub fn hide(app: &AppHandle) -> tauri::Result<()> {
+    log::info!(target: "cdm::admin", "hide_admin_view");
     if let Some(webview) = app.get_webview(ADMIN_WEBVIEW) {
         webview.hide()?;
     }
