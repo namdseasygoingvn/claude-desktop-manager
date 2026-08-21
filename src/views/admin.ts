@@ -1,8 +1,10 @@
 import type { ViewBounds } from "../api";
+import { t } from "./strings";
 
 export interface AdminOptions {
   onBounds: (bounds: ViewBounds) => void;
   error: string | null;
+  onRetry: () => void;
 }
 
 /** The members webview is a native child view the backend lays over the host's box. */
@@ -16,6 +18,16 @@ export function renderAdmin(options: AdminOptions): HTMLElement {
     error.setAttribute("role", "status");
     error.textContent = options.error;
     pane.append(error);
+
+    const actions = document.createElement("div");
+    actions.className = "full-pane-actions";
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "button primary";
+    retry.textContent = t.common.tryAgain;
+    retry.addEventListener("click", options.onRetry);
+    actions.append(retry);
+    pane.append(actions);
   }
 
   const host = document.createElement("div");

@@ -1157,6 +1157,10 @@ button {
   margin: 10px 16px 0;
 }
 
+.admin-pane .full-pane-actions {
+  margin: 10px 16px 0;
+}
+
 .admin-embed {
   flex: 1;
 }

@@ -18,6 +18,7 @@ import {
   listProfiles,
   locateFolder,
   moveProfile,
+  onAdminWebviewFailed,
   onTrayEvent,
   onUpdateProgress,
   onWindowShown,
@@ -240,7 +241,7 @@ function activePane(): HTMLElement {
 }
 
 function selectTab(tab: TabId): void {
-  if (state.tab === "admin" && tab !== "admin") void hideAdmin();
+  if (state.tab === "admin" && tab !== "admin") leaveAdminTab();
   state.tab = tab;
   syncMcpPolling();
   syncUsagePolling();
@@ -272,7 +273,11 @@ function profilesPane(): HTMLElement {
 
 function adminPane(): HTMLElement {
   return pane("plain", [
-    renderAdmin({ onBounds: (bounds) => void showAdmin(bounds), error: state.adminError }),
+    renderAdmin({
+      onBounds: (bounds) => void showAdmin(bounds),
+      error: state.adminError,
+      onRetry: retryAdmin,
+    }),
   ]);
 }
 
@@ -318,12 +323,25 @@ function generalPane(): HTMLElement {
   ]);
 }
 
-async function showAdmin(bounds: ViewBounds): Promise<void> {
+/** Last bounds sent to the backend, so a freshly-observed-but-unmoved pane doesn't re-send. */
+let lastAdminBounds: ViewBounds | null = null;
+
+function sameBounds(a: ViewBounds, b: ViewBounds | null): boolean {
+  return !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+/**
+ * `force` skips the unchanged-bounds check: a Retry click re-sends the same bounds the failure
+ * happened at, which the check would otherwise treat as a no-op.
+ */
+async function showAdmin(bounds: ViewBounds, force = false): Promise<void> {
+  if (!force && sameBounds(bounds, lastAdminBounds)) return;
+  lastAdminBounds = bounds;
   try {
     await showAdminView(bounds);
     // The user may have left the tab while the call was in flight.
     if (state.tab !== "admin") {
-      void hideAdmin();
+      leaveAdminTab();
       return;
     }
     if (state.adminError) {
@@ -334,12 +352,24 @@ async function showAdmin(bounds: ViewBounds): Promise<void> {
     // The error render rebuilds the pane, whose observer fires again: only render once.
     if (state.adminError) return;
     state.adminError = t.admin.loadFailed;
+    // Not cleared: Retry needs it, and it hides just the same as leaving the tab does.
+    void hideAdmin();
     render();
   }
 }
 
+function retryAdmin(): void {
+  if (lastAdminBounds) void showAdmin(lastAdminBounds, true);
+}
+
 function hideAdmin(): Promise<void> {
   return hideAdminView().catch(() => {});
+}
+
+/** Every path that leaves the admin tab without going through Retry needs both of these. */
+function leaveAdminTab(): void {
+  lastAdminBounds = null;
+  void hideAdmin();
 }
 
 async function loadSettings(): Promise<void> {
@@ -896,7 +926,9 @@ function onKeydown(event: KeyboardEvent): void {
 
   if (matches(event, shortcuts.newProfile)) {
     event.preventDefault();
-    // Creating from the Updates tab has to land somewhere visible.
+    // Creating from the Updates tab has to land somewhere visible; leaving the admin tab this
+    // way skips selectTab(), so its native child webview needs the same cleanup here.
+    if (state.tab === "admin") leaveAdminTab();
     state.tab = "profiles";
     newProfile();
   } else if (matches(event, shortcuts.hideWindow)) {
@@ -949,6 +981,12 @@ onTrayEvent("locateBinary", () => {
   showBinaryNotFound(() => void refresh());
 });
 onUpdateProgress(onProgress);
+onAdminWebviewFailed(() => {
+  if (state.tab !== "admin" || state.adminError) return;
+  state.adminError = t.admin.loadFailed;
+  void hideAdmin();
+  render();
+});
 
 pollForUpdate();
 setInterval(pollForUpdate, UPDATE_POLL_MS);

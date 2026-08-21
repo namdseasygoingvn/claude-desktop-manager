@@ -11,6 +11,9 @@ export const TRAY_EVENTS = {
 /** Mirrors `updater::PROGRESS_EVENT`. */
 const UPDATE_PROGRESS_EVENT = "cdm://update-progress";
 
+/** Mirrors `admin::FAILED_EVENT`. */
+const ADMIN_WEBVIEW_FAILED_EVENT = "cdm://admin-webview-failed";
+
 export interface Profile {
   id: string;
   name: string;
@@ -316,6 +319,14 @@ export function onTrayEvent(name: keyof typeof TRAY_EVENTS, handler: () => void)
 export function onUpdateProgress(handler: (progress: UpdateProgress) => void): void {
   try {
     void listen<UpdateProgress>(UPDATE_PROGRESS_EVENT, ({ payload }) => handler(payload));
+  } catch {
+    /* not running inside Tauri */
+  }
+}
+
+export function onAdminWebviewFailed(handler: () => void): void {
+  try {
+    void listen(ADMIN_WEBVIEW_FAILED_EVENT, () => handler());
   } catch {
     /* not running inside Tauri */
   }

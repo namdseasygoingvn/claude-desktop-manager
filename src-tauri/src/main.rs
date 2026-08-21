@@ -35,7 +35,7 @@ fn cli_invocation(args: &[String]) -> Option<Vec<String>> {
 }
 
 fn run_manager() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             let _ = tray::show_preferences(app);
         }))
@@ -118,7 +118,23 @@ fn run_manager() {
             }
             Ok(())
         })
-        .on_window_event(tray::on_window_event)
+        .on_window_event(tray::on_window_event);
+
+    // Unsupported on Linux/Windows/Android (see the method's own doc comment), so the admin
+    // webview's content-process death is only caught here on macOS/iOS; `admin::show`'s load
+    // timeout is the fallback everywhere else.
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    let builder = builder.on_web_content_process_terminate(|webview| {
+        if webview.label() == admin::ADMIN_WEBVIEW {
+            admin::mark_terminated(tauri::Manager::app_handle(webview));
+        } else {
+            // Registering this hook at all replaces wry's default silent-reload-on-terminate
+            // for every webview, so the main window's own implicit crash recovery must be kept.
+            let _ = webview.reload();
+        }
+    });
+
+    builder
         .run(tauri::generate_context!())
         .expect("failed to start Claude Desktop Manager");
 }

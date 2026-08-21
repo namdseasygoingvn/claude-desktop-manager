@@ -30,7 +30,9 @@
       sessionStorage.setItem("cdmRouteLockCap", JSON.stringify(stamps));
       return ok;
     } catch (err) {
-      return true;
+      // Fail closed: a broken cap must stop forcing further reloads, not remove the rate
+      // limit entirely and force-reload without bound.
+      return false;
     }
   }
 
