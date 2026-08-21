@@ -33,8 +33,8 @@
     parent.setAttribute("data-cdm-degrid", "1");
   }
 
-  // Inverse of hide() and collapseGrid(): runs whenever the route leaves members or the toggle
-  // goes off, so nothing stays hidden while this script is not meant to be in charge.
+  // Inverse of hide(), collapseGrid() and twoColumn(): runs whenever the route leaves members or
+  // the toggle goes off, so nothing stays changed while this script is not meant to be in charge.
   function restore() {
     var hidden = document.querySelectorAll("[data-cdm-hidden]");
     for (var i = 0; i < hidden.length; i++) {
@@ -46,6 +46,12 @@
       degridded[j].style.removeProperty("grid-template-columns");
       degridded[j].removeAttribute("data-cdm-degrid");
     }
+    var stacked = document.querySelectorAll("[data-cdm-2col]");
+    for (var k = 0; k < stacked.length; k++) {
+      stacked[k].removeAttribute("data-cdm-2col");
+    }
+    var style = document.getElementById(STYLE_ID);
+    if (style) style.remove();
   }
 
   function applyPrune() {
@@ -77,6 +83,7 @@
     for (var i = 0; i < headers.length; i++) {
       if (unwanted(headers[i])) hideColumn(table, i);
     }
+    twoColumn(table);
   }
 
   // Matched on the header cell, never on a column index: claude.ai adding or reordering a column
@@ -95,6 +102,38 @@
       var cell = rows[i].cells[index];
       if (cell) hide(cell);
     }
+  }
+
+  var STYLE_ID = "cdm-two-column";
+
+  // A page of rows, two-up, so all 15 fit in half the height. The column tracks are the three
+  // cells pruneMembersTable() leaves standing — name, tier, row actions — and are fixed rather
+  // than max-content because a row that sizes its own tracks leaves the tier dropdowns ragged.
+  // The multicolumn fills top-to-bottom then left-to-right and balances itself, so nothing here
+  // has to know how many rows the current page or filter produced.
+  var TWO_COLUMN_CSS = [
+    "table[data-cdm-2col] { display: block !important; }",
+    "table[data-cdm-2col] > thead { display: none !important; }",
+    "table[data-cdm-2col] > tbody { display: block !important; column-count: 2; column-gap: 2rem; }",
+    "table[data-cdm-2col] > tbody > tr {",
+    "  display: grid !important;",
+    "  grid-template-columns: minmax(0, 1fr) 9rem 3.25rem;",
+    "  align-items: center;",
+    "  break-inside: avoid;",
+    "}"
+  ].join("\n");
+
+  // A stylesheet, not inline styles on every row: the rows carry classes that outrank anything
+  // short of !important on each one, and one tag is one thing for restore() to take back out.
+  // Every rule is scoped to the attribute, so the stamp alone decides whether the layout is on.
+  function twoColumn(table) {
+    if (!document.getElementById(STYLE_ID)) {
+      var style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = TWO_COLUMN_CSS;
+      document.head.appendChild(style);
+    }
+    table.setAttribute("data-cdm-2col", "1");
   }
 
   function evaluate() {
