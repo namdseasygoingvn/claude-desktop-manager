@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::usage_cache::{self, CachedUsage, Miss};
+use super::usage_rollover;
 
 const USAGE_FILE: &str = "plan-usage-history.json";
 const FIVE_HOUR: &str = "fh";
@@ -69,10 +70,12 @@ struct Sample {
 /// so every failure is ordinary and none of them is worth an error: the numbers are decoration
 /// on a profile list that has to render regardless.
 pub fn read(profile_dir: &Path) -> Option<Usage> {
-    match usage_cache::read(profile_dir) {
-        Ok(cached) => Some(from_cache(cached)),
-        Err(miss) => from_history(profile_dir, miss.into()),
-    }
+    let mut usage = match usage_cache::read(profile_dir) {
+        Ok(cached) => from_cache(cached),
+        Err(miss) => from_history(profile_dir, miss.into())?,
+    };
+    usage_rollover::apply(&mut usage);
+    Some(usage)
 }
 
 fn from_cache(cached: CachedUsage) -> Usage {
