@@ -38,7 +38,10 @@ pub struct ServerInfo {
 /// so it can be exercised without a listener.
 pub fn dispatch(message: &Value, tools: &[Tool], info: &ServerInfo) -> Reply {
     if message.is_array() {
-        return Reply::new(400, Some(json!({"error": "JSON-RPC batching is not supported"})));
+        return Reply::new(
+            400,
+            Some(json!({"error": "JSON-RPC batching is not supported"})),
+        );
     }
 
     let id = message.get("id").cloned().unwrap_or(Value::Null);
@@ -101,7 +104,10 @@ fn call_tool(id: Value, tools: &[Tool], params: &Value) -> Reply {
         return fail(id, -32602, &format!("unknown tool: {shown}"));
     };
 
-    let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+    let args = params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
     // A failing tool is a tool-level error, not a protocol one: the client still gets a
     // valid result envelope, flagged with isError.
     match (tool.handler)(&args) {
@@ -125,7 +131,10 @@ fn text(result: &Value) -> Value {
 }
 
 fn reply(id: Value, result: Value) -> Reply {
-    Reply::new(200, Some(json!({"jsonrpc": "2.0", "id": id, "result": result})))
+    Reply::new(
+        200,
+        Some(json!({"jsonrpc": "2.0", "id": id, "result": result})),
+    )
 }
 
 /// JSON-RPC errors ride a 200 with an `error` member; transport failures use non-200.

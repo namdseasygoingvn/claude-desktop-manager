@@ -11,11 +11,11 @@ use sysinfo::System;
 #[cfg(target_os = "macos")]
 mod darwin;
 #[cfg(target_os = "windows")]
-mod win32;
-#[cfg(target_os = "windows")]
 mod msix;
 #[cfg(target_os = "windows")]
 mod msix_portable;
+#[cfg(target_os = "windows")]
+mod win32;
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 compile_error!("cdm supports macOS and Windows only");
@@ -160,7 +160,10 @@ fn env_override() -> Result<Option<PathBuf>> {
 }
 
 fn is_executable_file(path: &Path) -> bool {
-    if fs::metadata(path).map(|md| is_executable(&md)).unwrap_or(false) {
+    if fs::metadata(path)
+        .map(|md| is_executable(&md))
+        .unwrap_or(false)
+    {
         return true;
     }
     appexec_alias(path)
@@ -175,7 +178,8 @@ fn appexec_alias(_path: &Path) -> bool {
 /// refuses to follow them, so only symlink_metadata can prove they exist.
 #[cfg(windows)]
 fn appexec_alias(path: &Path) -> bool {
-    path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
+    path.extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
         && fs::symlink_metadata(path).is_ok()
 }
 
@@ -310,7 +314,10 @@ pub(crate) fn processes_for(data_dir: &Path) -> ProfileProcesses {
 
     all.sort_unstable();
     main.sort_unstable();
-    ProfileProcesses { main: main.first().copied(), all }
+    ProfileProcesses {
+        main: main.first().copied(),
+        all,
+    }
 }
 
 fn is_helper_arg(arg: &OsString) -> bool {
@@ -351,7 +358,10 @@ fn holds_path(text: &str, target: &Path) -> bool {
     }
     text.match_indices(needle.as_ref()).any(|(at, hit)| {
         let opens = at == 0
-            || matches!(text.as_bytes()[at - 1], b'=' | b':' | b',' | b' ' | b'"' | b'\'');
+            || matches!(
+                text.as_bytes()[at - 1],
+                b'=' | b':' | b',' | b' ' | b'"' | b'\''
+            );
         let closes = match text[at + hit.len()..].chars().next() {
             None => true,
             Some(next) => next == std::path::MAIN_SEPARATOR,
@@ -449,7 +459,9 @@ mod tests {
     /// `--user-data-dir`, and all three outlived every quit before the sweep learned to see them.
     #[test]
     fn the_children_that_leaked_are_all_matched() {
-        assert!(mentions(&["--database=/Users/x/Library/Application Support/Claude-Work/Crashpad"]));
+        assert!(mentions(&[
+            "--database=/Users/x/Library/Application Support/Claude-Work/Crashpad"
+        ]));
         assert!(mentions(&[
             "--plugin-dir",
             "/Users/x/Library/Application Support/Claude-Work/local-agent-mode-sessions/a/b"
@@ -493,11 +505,13 @@ mod tests {
     #[test]
     fn only_the_exact_flag_names_the_app_itself() {
         let targets = [PathBuf::from(DIR)];
-        let child = argv(&[
-            "/Users/x/Library/Application Support/Claude-Work/claude-code/2.1.221/claude",
-        ]);
+        let child =
+            argv(&["/Users/x/Library/Application Support/Claude-Work/claude-code/2.1.221/claude"]);
         assert!(mentions_data_dir(&child, None, &targets));
         assert!(!uses_data_dir(&child, &targets));
-        assert!(uses_data_dir(&argv(&[&format!("--user-data-dir={DIR}")]), &targets));
+        assert!(uses_data_dir(
+            &argv(&[&format!("--user-data-dir={DIR}")]),
+            &targets
+        ));
     }
 }

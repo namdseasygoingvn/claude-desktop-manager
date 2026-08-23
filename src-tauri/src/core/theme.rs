@@ -24,6 +24,9 @@ mod tests {
     fn the_stored_values_are_lowercase() {
         assert_eq!(serde_json::to_string(&Theme::Light).unwrap(), r#""light""#);
         assert_eq!(serde_json::to_string(&Theme::Dark).unwrap(), r#""dark""#);
-        assert_eq!(serde_json::to_string(&Theme::System).unwrap(), r#""system""#);
+        assert_eq!(
+            serde_json::to_string(&Theme::System).unwrap(),
+            r#""system""#
+        );
     }
 }

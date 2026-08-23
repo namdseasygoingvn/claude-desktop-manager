@@ -42,11 +42,18 @@ impl Platform for Darwin {
 
     fn resolve_picked_binary(&self, picked: &Path) -> Result<PathBuf> {
         let refused = || CdmError::NotClaude(picked.display().to_string());
-        let name = picked.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+        let name = picked
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase();
         if !name.contains("claude") {
             return Err(refused());
         }
-        if picked.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("app")) {
+        if picked
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("app"))
+        {
             return executable_in(picked).ok_or_else(refused);
         }
         if super::is_executable_file(picked) {
@@ -144,7 +151,10 @@ impl Platform for Darwin {
 
     fn link_dir(&self, target: &Path, link: &Path) -> Result<()> {
         std::os::unix::fs::symlink(target, link).map_err(|e| {
-            super::io_err(&format!("symlink {} -> {}", link.display(), target.display()), e)
+            super::io_err(
+                &format!("symlink {} -> {}", link.display(), target.display()),
+                e,
+            )
         })
     }
 
@@ -252,13 +262,21 @@ struct LockState {
 
 fn probe_lock(path: &Path) -> LockState {
     let Ok(file) = File::open(path) else {
-        return LockState { present: false, held: false, holder: None };
+        return LockState {
+            present: false,
+            held: false,
+            holder: None,
+        };
     };
     let fd = file.as_raw_fd();
     // leveldb takes an fcntl record lock; fcntl and flock are separate lock spaces on some
     // kernels, so ask both and treat either answer as held.
     let holder = record_lock_holder(fd);
-    LockState { present: true, held: holder.is_some() || flock_blocked(fd), holder }
+    LockState {
+        present: true,
+        held: holder.is_some() || flock_blocked(fd),
+        holder,
+    }
 }
 
 fn flock_blocked(fd: RawFd) -> bool {
@@ -279,7 +297,8 @@ fn record_lock_holder(fd: RawFd) -> Option<u32> {
     if queried != 0 {
         return None;
     }
-    (probe.l_type != libc::F_UNLCK as libc::c_short && probe.l_pid > 0).then_some(probe.l_pid as u32)
+    (probe.l_type != libc::F_UNLCK as libc::c_short && probe.l_pid > 0)
+        .then_some(probe.l_pid as u32)
 }
 
 fn signal(pid: u32, sig: libc::c_int) {

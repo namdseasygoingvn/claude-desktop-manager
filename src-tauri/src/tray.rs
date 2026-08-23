@@ -433,7 +433,9 @@ fn item(
     label: impl AsRef<str>,
     enabled: bool,
 ) -> tauri::Result<MenuItem<Wry>> {
-    MenuItemBuilder::with_id(id, label).enabled(enabled).build(app)
+    MenuItemBuilder::with_id(id, label)
+        .enabled(enabled)
+        .build(app)
 }
 
 fn quit_label() -> &'static str {

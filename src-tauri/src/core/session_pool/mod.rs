@@ -82,7 +82,9 @@ pub fn leave(profile_id: &str) -> Result<()> {
         if state != links::LinkState::OurLink {
             continue;
         }
-        let account_dir = profile_dir.join(links::SESSIONS_DIR_NAME).join(&account_uuid);
+        let account_dir = profile_dir
+            .join(links::SESSIONS_DIR_NAME)
+            .join(&account_uuid);
         links::materialize(&account_dir, &pool)?;
     }
 
@@ -99,15 +101,25 @@ pub fn reconcile(profile_id: &str, profile_dir: &Path) -> Result<()> {
     let member = membership::is_member(profile_id);
 
     for (account_uuid, state) in links::survey(profile_dir, &pool) {
-        let account_dir = profile_dir.join(links::SESSIONS_DIR_NAME).join(&account_uuid);
+        let account_dir = profile_dir
+            .join(links::SESSIONS_DIR_NAME)
+            .join(&account_uuid);
         if let Err(e) = reconcile_one(member, state, &account_dir, &pool) {
-            log::warn!("session-pool reconcile failed for {}: {e}", account_dir.display());
+            log::warn!(
+                "session-pool reconcile failed for {}: {e}",
+                account_dir.display()
+            );
         }
     }
     Ok(())
 }
 
-fn reconcile_one(member: bool, state: links::LinkState, account_dir: &Path, pool: &Path) -> Result<()> {
+fn reconcile_one(
+    member: bool,
+    state: links::LinkState,
+    account_dir: &Path,
+    pool: &Path,
+) -> Result<()> {
     match (member, state) {
         (true, links::LinkState::RealDir) => links::absorb(account_dir, pool),
         (false, links::LinkState::OurLink) => links::materialize(account_dir, pool),
@@ -120,7 +132,8 @@ fn reconcile_one(member: bool, state: links::LinkState, account_dir: &Path, pool
 /// report; `OurLink` entries are already done and are skipped, which is what makes a second
 /// call safe to retry.
 fn link_profile(profile_dir: &Path, pool: &Path) -> Result<JoinReport> {
-    fs::create_dir_all(pool).map_err(|e| CdmError::Io(format!("create {}: {e}", pool.display())))?;
+    fs::create_dir_all(pool)
+        .map_err(|e| CdmError::Io(format!("create {}: {e}", pool.display())))?;
 
     let mut report = JoinReport::default();
     for (account_uuid, state) in links::survey(profile_dir, pool) {
@@ -128,7 +141,9 @@ fn link_profile(profile_dir: &Path, pool: &Path) -> Result<JoinReport> {
             links::LinkState::ForeignLink => report.skipped_foreign.push(account_uuid),
             links::LinkState::OurLink => {}
             links::LinkState::RealDir => {
-                let account_dir = profile_dir.join(links::SESSIONS_DIR_NAME).join(&account_uuid);
+                let account_dir = profile_dir
+                    .join(links::SESSIONS_DIR_NAME)
+                    .join(&account_uuid);
                 links::absorb(&account_dir, pool)?;
             }
         }
@@ -156,7 +171,9 @@ pub(crate) mod home_guard {
 
     #[cfg(unix)]
     pub(crate) fn with_home<R>(home: &Path, f: impl FnOnce() -> R) -> R {
-        let _guard = HOME_GUARD.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = HOME_GUARD
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let prev = std::env::var_os("HOME");
         std::env::set_var("HOME", home);
         let result = f();
@@ -170,12 +187,14 @@ pub(crate) mod home_guard {
 
 #[cfg(test)]
 mod test_support {
-    use super::*;
     #[cfg(unix)]
     use super::super::types::Profile;
+    use super::*;
 
     pub(super) fn account_dir(profile_dir: &Path, account_uuid: &str) -> PathBuf {
-        profile_dir.join(links::SESSIONS_DIR_NAME).join(account_uuid)
+        profile_dir
+            .join(links::SESSIONS_DIR_NAME)
+            .join(account_uuid)
     }
 
     pub(super) fn seed_session(profile_dir: &Path, account_uuid: &str, sub_uuid: &str, file: &str) {
@@ -201,12 +220,12 @@ mod test_support {
 
 #[cfg(test)]
 mod join_tests {
-    use super::*;
     #[cfg(unix)]
     use super::home_guard::with_home;
     #[cfg(unix)]
     use super::test_support::seed_profile;
     use super::test_support::{account_dir, seed_session};
+    use super::*;
 
     #[test]
     fn a_real_account_dir_is_merged_into_the_pool_and_linked() {
@@ -232,7 +251,9 @@ mod join_tests {
         seed_session(profile.path(), "acct-real", "sub-1", "local_a.json");
         let foreign = account_dir(profile.path(), "acct-foreign");
         fs::create_dir_all(foreign.parent().unwrap()).unwrap();
-        platform::current().link_dir(elsewhere.path(), &foreign).unwrap();
+        platform::current()
+            .link_dir(elsewhere.path(), &foreign)
+            .unwrap();
 
         let report = link_profile(profile.path(), pool.path()).unwrap();
 
@@ -287,7 +308,11 @@ mod join_tests {
 
             assert!(report.skipped_foreign.is_empty());
             assert!(membership::is_member("p1"));
-            assert!(pool_root().unwrap().join("sub-1").join("local_a.json").exists());
+            assert!(pool_root()
+                .unwrap()
+                .join("sub-1")
+                .join("local_a.json")
+                .exists());
         });
     }
 
@@ -330,18 +355,21 @@ mod join_tests {
     fn joining_an_unknown_profile_id_fails() {
         let home = tempfile::tempdir().unwrap();
         with_home(home.path(), || {
-            assert!(matches!(join("does-not-exist"), Err(CdmError::ProfileNotFound(_))));
+            assert!(matches!(
+                join("does-not-exist"),
+                Err(CdmError::ProfileNotFound(_))
+            ));
         });
     }
 }
 
 #[cfg(test)]
 mod leave_tests {
-    use super::*;
     #[cfg(unix)]
     use super::home_guard::with_home;
     #[cfg(unix)]
     use super::test_support::{account_dir, seed_profile, seed_session};
+    use super::*;
 
     #[test]
     #[cfg(unix)]
@@ -418,11 +446,11 @@ mod leave_tests {
 
 #[cfg(test)]
 mod reconcile_tests {
-    use super::*;
     #[cfg(unix)]
     use super::home_guard::with_home;
     #[cfg(unix)]
     use super::test_support::{account_dir, seed_profile, seed_session};
+    use super::*;
 
     #[test]
     #[cfg(unix)]
@@ -437,8 +465,14 @@ mod reconcile_tests {
 
             reconcile("p1", &profile_dir).unwrap();
 
-            assert_eq!(fs::symlink_metadata(&account).unwrap().modified().unwrap(), before);
-            assert_eq!(platform::current().link_target(&account), Some(pool_root().unwrap()));
+            assert_eq!(
+                fs::symlink_metadata(&account).unwrap().modified().unwrap(),
+                before
+            );
+            assert_eq!(
+                platform::current().link_target(&account),
+                Some(pool_root().unwrap())
+            );
         });
     }
 
@@ -458,7 +492,10 @@ mod reconcile_tests {
             reconcile("p1", &profile_dir).unwrap();
 
             let pool = pool_root().unwrap();
-            assert_eq!(platform::current().link_target(&account), Some(pool.clone()));
+            assert_eq!(
+                platform::current().link_target(&account),
+                Some(pool.clone())
+            );
             assert!(pool.join("sub-1").join("local_a.json").exists());
             assert!(pool.join("sub-2").join("local_b.json").exists());
         });
@@ -473,7 +510,9 @@ mod reconcile_tests {
             let elsewhere = tempfile::tempdir().unwrap();
             let account = account_dir(&profile_dir, "acct-foreign");
             fs::create_dir_all(account.parent().unwrap()).unwrap();
-            platform::current().link_dir(elsewhere.path(), &account).unwrap();
+            platform::current()
+                .link_dir(elsewhere.path(), &account)
+                .unwrap();
             join("p1").unwrap();
 
             reconcile("p1", &profile_dir).unwrap();
@@ -532,7 +571,9 @@ mod reconcile_tests {
             let elsewhere = tempfile::tempdir().unwrap();
             let account = account_dir(&profile_dir, "acct-1");
             fs::create_dir_all(account.parent().unwrap()).unwrap();
-            platform::current().link_dir(elsewhere.path(), &account).unwrap();
+            platform::current()
+                .link_dir(elsewhere.path(), &account)
+                .unwrap();
 
             reconcile("p1", &profile_dir).unwrap();
 
@@ -578,7 +619,10 @@ mod reconcile_tests {
 
             reconcile("p1", &profile_dir).unwrap();
 
-            assert_eq!(fs::symlink_metadata(&account).unwrap().modified().unwrap(), after_first);
+            assert_eq!(
+                fs::symlink_metadata(&account).unwrap().modified().unwrap(),
+                after_first
+            );
         });
     }
 }

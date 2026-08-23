@@ -4,8 +4,7 @@ use std::os::windows::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 
-const PACKAGE_REPO_KEY: &str =
-    r"HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages";
+const PACKAGE_REPO_KEY: &str = r"HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages";
 const CLAUDE_PACKAGE_FILTER: &str = "Claude_*";
 const CLAUDE_PACKAGE_PREFIX: &str = "Claude_";
 const PACKAGE_ROOT_FOLDER_VALUE: &str = "PackageRootFolder";
@@ -17,7 +16,9 @@ const PROGRAMFILES_ENV: &str = "PROGRAMFILES";
 /// update; the app-execution alias survives neither.
 pub(super) fn payload_exe() -> Option<PathBuf> {
     let full_name = newest_claude_package()?;
-    let exe = package_root(&full_name)?.join(APP_SUBDIR).join(super::win32::EXE_NAME);
+    let exe = package_root(&full_name)?
+        .join(APP_SUBDIR)
+        .join(super::win32::EXE_NAME);
     super::is_executable_file(&exe).then_some(exe)
 }
 
@@ -32,7 +33,10 @@ fn query_claude_packages_text() -> Option<String> {
         .creation_flags(super::win32::CREATE_NO_WINDOW)
         .output()
         .ok()?;
-    output.status.success().then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 /// The summary line ("N match(es) found") is localized; the "HKEY" prefix on key lines is not.
@@ -46,7 +50,9 @@ fn claude_packages(text: &str) -> Vec<String> {
 }
 
 fn newest(names: Vec<String>) -> Option<String> {
-    names.into_iter().max_by_key(|name| super::win32::version_key(package_version(name)))
+    names
+        .into_iter()
+        .max_by_key(|name| super::win32::version_key(package_version(name)))
 }
 
 fn package_version(full_name: &str) -> &str {

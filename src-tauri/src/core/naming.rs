@@ -141,12 +141,22 @@ mod tests {
         assert_eq!(slug("a.b_c-d"), "a.b_c-d");
         assert_eq!(slug("CON"), "CON");
         assert_eq!(slug(&"x".repeat(40)), "x".repeat(MAX_SLUG_LEN));
-        assert_eq!(slug(&format!("{}-tail", "y".repeat(MAX_SLUG_LEN))), "y".repeat(MAX_SLUG_LEN));
+        assert_eq!(
+            slug(&format!("{}-tail", "y".repeat(MAX_SLUG_LEN))),
+            "y".repeat(MAX_SLUG_LEN)
+        );
     }
 
     #[test]
     fn slug_output_is_always_a_safe_component() {
-        for name in ["../../etc/passwd", "C:\\Windows", "-flag", "a\0b", "..", "."] {
+        for name in [
+            "../../etc/passwd",
+            "C:\\Windows",
+            "-flag",
+            "a\0b",
+            "..",
+            ".",
+        ] {
             let folder = format!("{FOLDER_PREFIX}{}", slug(name));
             assert!(is_safe_dir(&folder), "{folder}");
             assert!(is_generated_dir(&folder), "{folder}");
@@ -172,10 +182,16 @@ mod tests {
         // Marker-less and unregistered — exactly the hand-made folder the user already owns.
         std::fs::create_dir(root.path().join("Claude-work")).unwrap();
 
-        assert_eq!(resolve_folder("Work", root.path()).unwrap(), "Claude-Work-2");
+        assert_eq!(
+            resolve_folder("Work", root.path()).unwrap(),
+            "Claude-Work-2"
+        );
 
         std::fs::create_dir(root.path().join("Claude-Work-2")).unwrap();
-        assert_eq!(resolve_folder("Work", root.path()).unwrap(), "Claude-Work-3");
+        assert_eq!(
+            resolve_folder("Work", root.path()).unwrap(),
+            "Claude-Work-3"
+        );
     }
 
     #[test]

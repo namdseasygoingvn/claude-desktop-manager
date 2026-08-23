@@ -59,8 +59,16 @@ fn create_group(app: &AppHandle) -> Tool {
     tool(
         "create_group",
         "Create an empty group.",
-        object(json!({"name": string_prop("Display name for the new group.")}), &["name"]),
-        move |args| out(commands::create_group(app.clone(), require_str(args, "name")?)),
+        object(
+            json!({"name": string_prop("Display name for the new group.")}),
+            &["name"],
+        ),
+        move |args| {
+            out(commands::create_group(
+                app.clone(),
+                require_str(args, "name")?,
+            ))
+        },
     )
 }
 
@@ -78,7 +86,11 @@ fn rename_group(app: &AppHandle) -> Tool {
         ),
         move |args| {
             let id = resolve_group(args)?;
-            out(commands::rename_group(app.clone(), id, require_str(args, "name")?))
+            out(commands::rename_group(
+                app.clone(),
+                id,
+                require_str(args, "name")?,
+            ))
         },
     )
 }
@@ -120,7 +132,10 @@ fn delete_group(app: &AppHandle) -> Tool {
     tool(
         "delete_group",
         "Delete a group. Its profiles stay in the list, ungrouped.",
-        object(json!({"group": string_prop("Group id or name.")}), &["group"]),
+        object(
+            json!({"group": string_prop("Group id or name.")}),
+            &["group"],
+        ),
         move |args| {
             let id = resolve_group(args)?;
             commands::delete_group(app.clone(), id.clone()).map_err(detail)?;
@@ -227,7 +242,10 @@ fn get_profile() -> Tool {
     tool(
         "get_profile",
         "One profile with its resolved folder path and config path. Identify it by id or by name.",
-        object(json!({"profile": string_prop("Profile id or name.")}), &["profile"]),
+        object(
+            json!({"profile": string_prop("Profile id or name.")}),
+            &["profile"],
+        ),
         |args| {
             let reference = require_str(args, "profile")?;
             let status = find(&reference)?;
@@ -288,8 +306,16 @@ fn create_profile(app: &AppHandle) -> Tool {
     tool(
         "create_profile",
         "Create a profile: scaffolds its folder and registers it. Does not launch it.",
-        object(json!({"name": string_prop("Display name for the new profile.")}), &["name"]),
-        move |args| out(commands::create_profile(app.clone(), require_str(args, "name")?)),
+        object(
+            json!({"name": string_prop("Display name for the new profile.")}),
+            &["name"],
+        ),
+        move |args| {
+            out(commands::create_profile(
+                app.clone(),
+                require_str(args, "name")?,
+            ))
+        },
     )
 }
 
@@ -312,7 +338,10 @@ fn quit_profile(app: &AppHandle) -> Tool {
     tool(
         "quit_profile",
         "Ask a running profile's Claude Desktop to quit.",
-        object(json!({"profile": string_prop("Profile id or name.")}), &["profile"]),
+        object(
+            json!({"profile": string_prop("Profile id or name.")}),
+            &["profile"],
+        ),
         move |args| {
             let id = resolve_id(args)?;
             commands::quit_profile(app.clone(), id.clone()).map_err(detail)?;
@@ -384,7 +413,10 @@ fn reveal_profile() -> Tool {
     tool(
         "reveal_profile",
         "Show a profile's folder in Finder/Explorer. Exercises the live reveal path.",
-        object(json!({"profile": string_prop("Profile id or name.")}), &["profile"]),
+        object(
+            json!({"profile": string_prop("Profile id or name.")}),
+            &["profile"],
+        ),
         |args| {
             let id = resolve_id(args)?;
             commands::reveal_profile(id.clone()).map_err(detail)?;
@@ -397,7 +429,10 @@ fn open_config() -> Tool {
     tool(
         "open_config",
         "Open a profile's claude_desktop_config.json in the default editor.",
-        object(json!({"profile": string_prop("Profile id or name.")}), &["profile"]),
+        object(
+            json!({"profile": string_prop("Profile id or name.")}),
+            &["profile"],
+        ),
         |args| {
             let id = resolve_id(args)?;
             commands::open_config(id.clone()).map_err(detail)?;

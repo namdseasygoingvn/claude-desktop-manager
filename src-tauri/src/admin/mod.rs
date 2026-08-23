@@ -7,9 +7,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use tauri::webview::{PageLoadEvent, PageLoadPayload, WebviewBuilder};
-use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, Webview, WebviewUrl,
-};
+use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, Webview, WebviewUrl};
 
 use crate::tray;
 
@@ -21,7 +19,12 @@ const ALLOWED_HOSTS: [&str; 2] = ["claude.ai", "anthropic.com"];
 /// `{scheme}://{host}{path}` — deliberately omits query and fragment so nothing sensitive
 /// (auth tokens, codes) ever reaches the log.
 fn origin_and_path(url: &tauri::Url) -> String {
-    format!("{}://{}{}", url.scheme(), url.host_str().unwrap_or(""), url.path())
+    format!(
+        "{}://{}{}",
+        url.scheme(),
+        url.host_str().unwrap_or(""),
+        url.path()
+    )
 }
 
 pub const ADMIN_WEBVIEW: &str = "admin";
@@ -87,7 +90,12 @@ static HEALTH: OnceLock<Mutex<Health>> = OnceLock::new();
 /// bargain `mcp::server` makes.
 fn health() -> MutexGuard<'static, Health> {
     HEALTH
-        .get_or_init(|| Mutex::new(Health { generation: 0, status: Status::Loading }))
+        .get_or_init(|| {
+            Mutex::new(Health {
+                generation: 0,
+                status: Status::Loading,
+            })
+        })
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
@@ -151,7 +159,15 @@ fn clamp(bounds: Bounds, scale: f64, frame: tauri::LogicalSize<f64>) -> tauri::R
     let y = (bounds.y + inset).max(0.0).min(frame.height);
     let width = bounds.width.max(0.0).min(frame.width - x);
     let height = bounds.height.max(0.0).min(frame.height - y);
-    let placed = reject_implausible(Placement { x, y, width, height }, inset)?;
+    let placed = reject_implausible(
+        Placement {
+            x,
+            y,
+            width,
+            height,
+        },
+        inset,
+    )?;
     log::info!(target: "cdm::admin", "placed bounds {placed:?}");
     Ok(placed)
 }

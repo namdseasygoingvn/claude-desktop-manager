@@ -46,7 +46,10 @@ pub fn remember(window: &Window) {
         return;
     }
     let size = size.to_logical::<u32>(scale);
-    let _ = writer().send(WindowSize { width: size.width, height: size.height });
+    let _ = writer().send(WindowSize {
+        width: size.width,
+        height: size.height,
+    });
 }
 
 /// One thread, not one per event: it swallows a whole drag and writes the size it ends on.
@@ -82,7 +85,10 @@ fn clamp_to_monitor(window: &WebviewWindow, size: WindowSize) -> WindowSize {
     let Ok(Some(monitor)) = window.current_monitor() else {
         return size;
     };
-    let area = monitor.work_area().size.to_logical::<u32>(monitor.scale_factor());
+    let area = monitor
+        .work_area()
+        .size
+        .to_logical::<u32>(monitor.scale_factor());
     WindowSize {
         width: size.width.min(area.width),
         height: size.height.min(area.height),

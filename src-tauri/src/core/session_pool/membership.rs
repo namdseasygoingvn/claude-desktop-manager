@@ -27,7 +27,9 @@ impl Default for Membership {
 }
 
 pub fn path() -> Result<PathBuf> {
-    Ok(platform::current().manager_data_dir()?.join(SESSION_SYNC_FILE))
+    Ok(platform::current()
+        .manager_data_dir()?
+        .join(SESSION_SYNC_FILE))
 }
 
 /// Cannot fail: missing or unparseable session-sync.json is Membership::default().

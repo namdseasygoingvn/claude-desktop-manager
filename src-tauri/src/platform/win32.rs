@@ -60,7 +60,11 @@ impl Platform for Win32 {
 
     fn resolve_picked_binary(&self, picked: &Path) -> Result<PathBuf> {
         let refused = || CdmError::NotClaude(picked.display().to_string());
-        let name = picked.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+        let name = picked
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase();
         if !name.contains("claude") || !super::is_executable_file(picked) {
             return Err(refused());
         }
@@ -158,7 +162,9 @@ impl Platform for Win32 {
             .output()
             .map_err(|e| super::io_err("mklink /J", e))?;
         if !output.status.success() {
-            return Err(CdmError::Io(String::from_utf8_lossy(&output.stderr).trim().to_string()));
+            return Err(CdmError::Io(
+                String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            ));
         }
         Ok(())
     }
@@ -193,7 +199,9 @@ pub(super) fn reg_sz_query(key: &str, value: &str) -> Option<String> {
         return None;
     }
     let text = String::from_utf8_lossy(&output.stdout);
-    let line = text.lines().find(|line| line.trim_start().starts_with(value))?;
+    let line = text
+        .lines()
+        .find(|line| line.trim_start().starts_with(value))?;
     let (_, result) = line.split_once("REG_SZ")?;
     let result = result.trim();
     (!result.is_empty()).then(|| result.to_string())
@@ -216,7 +224,10 @@ fn newest_versioned_exe(root: &Path) -> Option<PathBuf> {
 }
 
 pub(super) fn version_key(version: &str) -> Vec<u64> {
-    version.split('.').map(|part| part.parse().unwrap_or(0)).collect()
+    version
+        .split('.')
+        .map(|part| part.parse().unwrap_or(0))
+        .collect()
 }
 
 fn msix_alias() -> Option<PathBuf> {

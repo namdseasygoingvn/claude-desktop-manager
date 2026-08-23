@@ -100,7 +100,10 @@ mod tests {
             show_usage_limits: false,
             theme: Theme::Dark,
             sidebar_width: Some(320),
-            window_size: Some(WindowSize { width: 900, height: 700 }),
+            window_size: Some(WindowSize {
+                width: 900,
+                height: 700,
+            }),
             collapsed_groups: vec!["g_1".to_string()],
             mcp_enabled: false,
             mcp_port: 20209,

@@ -118,7 +118,8 @@ mod tests {
 
     fn set_mtime(path: &Path, time: SystemTime) {
         let file = File::options().write(true).open(path).unwrap();
-        file.set_times(fs::FileTimes::new().set_modified(time)).unwrap();
+        file.set_times(fs::FileTimes::new().set_modified(time))
+            .unwrap();
     }
 
     #[test]
@@ -135,8 +136,14 @@ mod tests {
         let outcome = apply(source.path(), dest.path(), &merge_plan);
         assert_eq!(outcome.copied, vec![PathBuf::from("a.json")]);
         assert!(outcome.failed.is_empty());
-        assert_eq!(fs::read_to_string(dest.path().join("a.json")).unwrap(), "new");
-        assert_eq!(fs::read_to_string(dest.path().join("b.json")).unwrap(), "existing");
+        assert_eq!(
+            fs::read_to_string(dest.path().join("a.json")).unwrap(),
+            "new"
+        );
+        assert_eq!(
+            fs::read_to_string(dest.path().join("b.json")).unwrap(),
+            "existing"
+        );
     }
 
     #[test]
@@ -154,7 +161,10 @@ mod tests {
 
         let outcome = apply(source.path(), dest.path(), &merge_plan);
         assert!(outcome.copied.is_empty());
-        assert_eq!(fs::read_to_string(dest.path().join("local_x.json")).unwrap(), "from dest");
+        assert_eq!(
+            fs::read_to_string(dest.path().join("local_x.json")).unwrap(),
+            "from dest"
+        );
     }
 
     #[test]
@@ -165,20 +175,28 @@ mod tests {
         write(&dest.path().join("local_x.json"), "older");
         let base = SystemTime::now();
         set_mtime(&dest.path().join("local_x.json"), base);
-        set_mtime(&source.path().join("local_x.json"), base + Duration::from_secs(5));
+        set_mtime(
+            &source.path().join("local_x.json"),
+            base + Duration::from_secs(5),
+        );
 
         let merge_plan = plan(source.path(), dest.path());
         assert_eq!(merge_plan.copies.len(), 1);
 
         apply(source.path(), dest.path(), &merge_plan);
-        assert_eq!(fs::read_to_string(dest.path().join("local_x.json")).unwrap(), "newer");
+        assert_eq!(
+            fs::read_to_string(dest.path().join("local_x.json")).unwrap(),
+            "newer"
+        );
     }
 
     #[test]
     fn a_deeply_nested_new_file_is_planned_with_its_full_relative_path_and_copied() {
         let source = tempfile::tempdir().unwrap();
         let dest = tempfile::tempdir().unwrap();
-        let nested = PathBuf::from("account-uuid").join("sub-uuid").join("local_new.json");
+        let nested = PathBuf::from("account-uuid")
+            .join("sub-uuid")
+            .join("local_new.json");
         write(&source.path().join(&nested), "session");
 
         let merge_plan = plan(source.path(), dest.path());
@@ -187,7 +205,10 @@ mod tests {
 
         let outcome = apply(source.path(), dest.path(), &merge_plan);
         assert_eq!(outcome.copied, vec![nested.clone()]);
-        assert_eq!(fs::read_to_string(dest.path().join(&nested)).unwrap(), "session");
+        assert_eq!(
+            fs::read_to_string(dest.path().join(&nested)).unwrap(),
+            "session"
+        );
     }
 
     #[test]
@@ -200,7 +221,10 @@ mod tests {
 
         let merge_plan = plan(source.path(), dest.path());
         assert_eq!(merge_plan.copies.len(), 1);
-        assert_eq!(merge_plan.copies[0].relative_path, PathBuf::from("sub/local_x.json"));
+        assert_eq!(
+            merge_plan.copies[0].relative_path,
+            PathBuf::from("sub/local_x.json")
+        );
     }
 
     #[test]
@@ -212,7 +236,10 @@ mod tests {
 
         let merge_plan = plan(source.path(), dest.path());
         assert_eq!(merge_plan.copies.len(), 1);
-        assert_eq!(merge_plan.copies[0].relative_path, PathBuf::from("deleted_abc"));
+        assert_eq!(
+            merge_plan.copies[0].relative_path,
+            PathBuf::from("deleted_abc")
+        );
 
         apply(source.path(), dest.path(), &merge_plan);
         assert!(dest.path().join("deleted_abc").exists());
@@ -243,7 +270,10 @@ mod tests {
 
         let outcome = apply(source.path(), &missing_dest, &merge_plan);
         assert!(outcome.failed.is_empty());
-        assert_eq!(fs::read_to_string(missing_dest.join("local_x.json")).unwrap(), "fresh join");
+        assert_eq!(
+            fs::read_to_string(missing_dest.join("local_x.json")).unwrap(),
+            "fresh join"
+        );
     }
 
     #[test]
@@ -261,9 +291,15 @@ mod tests {
 
         fs::set_permissions(source.path().join("sub"), fs::Permissions::from_mode(0o700)).unwrap();
 
-        assert_eq!(merge_plan.unreadable, vec![PathBuf::from("sub/secret.json")]);
+        assert_eq!(
+            merge_plan.unreadable,
+            vec![PathBuf::from("sub/secret.json")]
+        );
         assert_eq!(merge_plan.copies.len(), 1);
-        assert_eq!(merge_plan.copies[0].relative_path, PathBuf::from("local_ok.json"));
+        assert_eq!(
+            merge_plan.copies[0].relative_path,
+            PathBuf::from("local_ok.json")
+        );
     }
 
     #[test]
@@ -272,9 +308,16 @@ mod tests {
         let dest = tempfile::tempdir().unwrap();
         write(&source.path().join("local_ok.json"), "fine");
 
-        let missing_op = CopyOp { relative_path: PathBuf::from("local_gone.json") };
-        let ok_op = CopyOp { relative_path: PathBuf::from("local_ok.json") };
-        let merge_plan = MergePlan { copies: vec![missing_op, ok_op], unreadable: Vec::new() };
+        let missing_op = CopyOp {
+            relative_path: PathBuf::from("local_gone.json"),
+        };
+        let ok_op = CopyOp {
+            relative_path: PathBuf::from("local_ok.json"),
+        };
+        let merge_plan = MergePlan {
+            copies: vec![missing_op, ok_op],
+            unreadable: Vec::new(),
+        };
 
         let outcome = apply(source.path(), dest.path(), &merge_plan);
         assert_eq!(outcome.copied, vec![PathBuf::from("local_ok.json")]);

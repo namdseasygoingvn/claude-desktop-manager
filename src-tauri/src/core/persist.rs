@@ -18,8 +18,12 @@ pub fn write_json<T: Serialize>(dir: &Path, file: &str, value: &T, subject: &str
         .map_err(|err| CdmError::Io(format!("cannot create {}: {err}", dir.display())))?;
 
     // rename() is only atomic within a filesystem, so the temp file lives beside the target.
-    let mut tmp = NamedTempFile::new_in(dir)
-        .map_err(|err| CdmError::Io(format!("cannot create a temp file in {}: {err}", dir.display())))?;
+    let mut tmp = NamedTempFile::new_in(dir).map_err(|err| {
+        CdmError::Io(format!(
+            "cannot create a temp file in {}: {err}",
+            dir.display()
+        ))
+    })?;
     {
         let mut writer = BufWriter::new(tmp.as_file_mut());
         serde_json::to_writer_pretty(&mut writer, value)

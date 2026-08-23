@@ -10,7 +10,9 @@ fn lines() -> &'static Mutex<Vec<String>> {
 
 /// A poisoned lock costs at most a garbled debug line, so recover rather than propagate.
 fn locked() -> std::sync::MutexGuard<'static, Vec<String>> {
-    lines().lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    lines()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 pub fn snapshot() -> Vec<String> {

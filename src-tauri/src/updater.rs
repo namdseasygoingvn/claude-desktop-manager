@@ -74,7 +74,10 @@ async fn install_latest(app: &AppHandle, report: bool) -> Result<Option<String>,
 }
 
 fn failed(detail: String) -> CommandError {
-    CommandError { kind: "updateFailed", detail: Some(detail) }
+    CommandError {
+        kind: "updateFailed",
+        detail: Some(detail),
+    }
 }
 
 /// On Windows this is a no-op: `install_latest` there hands off to the installer and exits the
@@ -100,8 +103,12 @@ pub fn spawn_background_check(app: &AppHandle) {
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> CmdResult<UpdateOutcome> {
     match pending(&app).await.map_err(failed)? {
-        Some(update) => Ok(UpdateOutcome::Available { version: update.version }),
-        None => Ok(UpdateOutcome::UpToDate { version: app.package_info().version.to_string() }),
+        Some(update) => Ok(UpdateOutcome::Available {
+            version: update.version,
+        }),
+        None => Ok(UpdateOutcome::UpToDate {
+            version: app.package_info().version.to_string(),
+        }),
     }
 }
 

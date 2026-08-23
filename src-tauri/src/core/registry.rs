@@ -38,12 +38,12 @@ pub fn load() -> Result<Registry> {
     };
 
     match serde_json::from_slice::<Registry>(&bytes) {
-        Ok(registry) if registry.version > REGISTRY_VERSION => Err(CdmError::RegistryCorrupt(
-            format!(
+        Ok(registry) if registry.version > REGISTRY_VERSION => {
+            Err(CdmError::RegistryCorrupt(format!(
                 "registry.json is version {} but this build understands {REGISTRY_VERSION}",
                 registry.version
-            ),
-        )),
+            )))
+        }
         Ok(registry) => Ok(registry),
         Err(err) => {
             quarantine(&path, &err.to_string())?;
@@ -141,7 +141,10 @@ fn scan_markers(root: &Path) -> Result<BTreeMap<String, Vec<String>>> {
 }
 
 fn read_marker(dir: &Path) -> Option<String> {
-    let id = fs::read_to_string(dir.join(MARKER_FILE)).ok()?.trim().to_string();
+    let id = fs::read_to_string(dir.join(MARKER_FILE))
+        .ok()?
+        .trim()
+        .to_string();
     if id.is_empty() {
         None
     } else {

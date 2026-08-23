@@ -156,7 +156,11 @@ fn versions(dir: &Path) -> Vec<String> {
 
 /// Dotted, so `versions` never mistakes a half-built tree for a build the app could run.
 fn staging(target: &Path, tag: &str) -> PathBuf {
-    let name = target.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let name = target
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
     target.with_file_name(format!(".cdm-{tag}-{name}-{}", random_id()))
 }
 
@@ -206,7 +210,10 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         build(&root.path().join("a"), "abc");
         fs::create_dir_all(root.path().join("bare")).unwrap();
-        assert!(!same_build(&root.path().join("a"), &root.path().join("bare")));
+        assert!(!same_build(
+            &root.path().join("a"),
+            &root.path().join("bare")
+        ));
     }
 
     #[test]

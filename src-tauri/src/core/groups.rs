@@ -58,8 +58,13 @@ impl<'de> Deserialize<'de> for GroupIcon {
             symbol: Option<String>,
         }
         match Wire::deserialize(deserializer)? {
-            Wire { emoji: Some(emoji), .. } => Ok(GroupIcon::Emoji(emoji)),
-            Wire { symbol: Some(symbol), .. } => Ok(GroupIcon::Symbol(symbol)),
+            Wire {
+                emoji: Some(emoji), ..
+            } => Ok(GroupIcon::Emoji(emoji)),
+            Wire {
+                symbol: Some(symbol),
+                ..
+            } => Ok(GroupIcon::Symbol(symbol)),
             _ => Err(serde::de::Error::custom("GroupIcon has no known key")),
         }
     }
@@ -138,8 +143,10 @@ fn migrate(groups: Vec<Group>, profiles: &[super::types::Profile]) -> GroupList 
         .iter()
         .flat_map(|group| group.profile_ids.iter().map(String::as_str))
         .collect();
-    let mut order: Vec<String> =
-        groups.iter().flat_map(|group| group.profile_ids.iter().cloned()).collect();
+    let mut order: Vec<String> = groups
+        .iter()
+        .flat_map(|group| group.profile_ids.iter().cloned())
+        .collect();
     for profile in profiles {
         if !grouped.contains(profile.id.as_str()) {
             order.push(profile.id.clone());
@@ -235,7 +242,9 @@ fn prune(groups: &mut [Group], existing: &HashSet<&str>) -> bool {
     let mut changed = false;
     for group in groups.iter_mut() {
         let before = group.profile_ids.len();
-        group.profile_ids.retain(|id| existing.contains(id.as_str()));
+        group
+            .profile_ids
+            .retain(|id| existing.contains(id.as_str()));
         changed |= group.profile_ids.len() != before;
     }
     changed
@@ -288,7 +297,10 @@ mod tests {
             serde_json::from_value::<GroupIcon>(emoji.clone()).unwrap(),
             GroupIcon::Emoji("🏢".to_string())
         );
-        assert_eq!(serde_json::to_value(GroupIcon::Emoji("🏢".to_string())).unwrap(), emoji);
+        assert_eq!(
+            serde_json::to_value(GroupIcon::Emoji("🏢".to_string())).unwrap(),
+            emoji
+        );
 
         let symbol = serde_json::json!({"symbol": "folder"});
         assert_eq!(

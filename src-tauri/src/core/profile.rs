@@ -188,7 +188,10 @@ pub fn adopt(dir_name: &str, display_name: &str) -> Result<Profile> {
     let plat = platform::current();
     let dir = plat.profiles_root()?.join(dir_name);
     if !dir.is_dir() {
-        return Err(CdmError::Other(format!("no such folder: {}", dir.display())));
+        return Err(CdmError::Other(format!(
+            "no such folder: {}",
+            dir.display()
+        )));
     }
 
     let marker = dir.join(MARKER_FILE);
@@ -430,28 +433,52 @@ mod tests {
     fn a_hand_made_folder_holding_profile_evidence_is_a_candidate() {
         let root = tempfile::tempdir().unwrap();
         folder(root.path(), "Claude-Work", &["ant-did"]);
-        assert!(is_adoptable(root.path(), "Claude-Work", &Registry::default()));
+        assert!(is_adoptable(
+            root.path(),
+            "Claude-Work",
+            &Registry::default()
+        ));
     }
 
     #[test]
     fn the_unmanaged_claude_folder_with_evidence_is_a_candidate() {
         let root = tempfile::tempdir().unwrap();
-        folder(root.path(), UNMANAGED_DIR, &["ant-did", "ant-device-registry.json"]);
-        assert!(is_adoptable(root.path(), UNMANAGED_DIR, &Registry::default()));
+        folder(
+            root.path(),
+            UNMANAGED_DIR,
+            &["ant-did", "ant-device-registry.json"],
+        );
+        assert!(is_adoptable(
+            root.path(),
+            UNMANAGED_DIR,
+            &Registry::default()
+        ));
     }
 
     #[test]
     fn the_unmanaged_claude_folder_without_evidence_is_not_a_candidate() {
         let root = tempfile::tempdir().unwrap();
         folder(root.path(), UNMANAGED_DIR, &[]);
-        assert!(!is_adoptable(root.path(), UNMANAGED_DIR, &Registry::default()));
+        assert!(!is_adoptable(
+            root.path(),
+            UNMANAGED_DIR,
+            &Registry::default()
+        ));
     }
 
     #[test]
     fn an_unrelated_electron_app_under_the_prefix_is_not_a_candidate() {
         let root = tempfile::tempdir().unwrap();
-        folder(root.path(), "claude-multi-account", &["Local State", "Preferences"]);
-        assert!(!is_adoptable(root.path(), "claude-multi-account", &Registry::default()));
+        folder(
+            root.path(),
+            "claude-multi-account",
+            &["Local State", "Preferences"],
+        );
+        assert!(!is_adoptable(
+            root.path(),
+            "claude-multi-account",
+            &Registry::default()
+        ));
     }
 
     #[test]
@@ -459,16 +486,28 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         folder(root.path(), "Claude-Marked", &["ant-did", MARKER_FILE]);
         folder(root.path(), "Claude-Listed", &["ant-did"]);
-        assert!(!is_adoptable(root.path(), "Claude-Marked", &Registry::default()));
+        assert!(!is_adoptable(
+            root.path(),
+            "Claude-Marked",
+            &Registry::default()
+        ));
         // Registered under a differently-cased spelling: the same folder either way.
-        assert!(!is_adoptable(root.path(), "Claude-Listed", &registered(&["claude-listed"])));
+        assert!(!is_adoptable(
+            root.path(),
+            "Claude-Listed",
+            &registered(&["claude-listed"])
+        ));
     }
 
     #[test]
     fn a_folder_without_profile_evidence_is_not_a_candidate() {
         let root = tempfile::tempdir().unwrap();
         folder(root.path(), "Claude-notes", &["todo.txt"]);
-        assert!(!is_adoptable(root.path(), "Claude-notes", &Registry::default()));
+        assert!(!is_adoptable(
+            root.path(),
+            "Claude-notes",
+            &Registry::default()
+        ));
     }
 
     #[test]

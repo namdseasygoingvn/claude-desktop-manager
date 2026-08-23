@@ -272,7 +272,14 @@ fn split_offset(time: &str) -> Option<(&str, i64)> {
     let (clock, zone) = time.split_at(time.rfind(['+', '-'])?);
     let (hours, minutes) = zone.get(1..)?.split_once(':')?;
     let seconds = field(Some(hours), 0..=23)? * 3_600 + field(Some(minutes), 0..=59)? * 60;
-    Some((clock, if zone.starts_with('-') { -seconds } else { seconds }))
+    Some((
+        clock,
+        if zone.starts_with('-') {
+            -seconds
+        } else {
+            seconds
+        },
+    ))
 }
 
 fn millis(fraction: &str) -> i64 {
@@ -479,7 +486,11 @@ mod tests {
     fn a_cache_holding_other_requests_is_no_entry() {
         let dir = profile_dir();
         let key = "1/0/https://claude.ai/api/organizations/org-1/projects";
-        fixture::write(dir.path(), "a", &fixture::record(MAGIC, VERSION, key, RESPONSE));
+        fixture::write(
+            dir.path(),
+            "a",
+            &fixture::record(MAGIC, VERSION, key, RESPONSE),
+        );
         assert_eq!(read(dir.path()).unwrap_err(), Miss::NoEntry);
     }
 
@@ -512,7 +523,10 @@ mod tests {
     #[test]
     fn a_timestamp_with_an_offset_lands_in_utc() {
         let utc = 1_786_198_199_000;
-        assert_eq!(epoch_ms("2026-08-08T14:09:59.822762+00:00"), Some(utc + 822));
+        assert_eq!(
+            epoch_ms("2026-08-08T14:09:59.822762+00:00"),
+            Some(utc + 822)
+        );
         assert_eq!(epoch_ms("2026-08-08T14:09:59Z"), Some(utc));
         assert_eq!(epoch_ms("2026-08-08T09:09:59-05:00"), Some(utc));
     }

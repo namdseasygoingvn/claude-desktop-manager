@@ -58,13 +58,23 @@ fn handle(mut stream: TcpStream, endpoint: &Endpoint) {
     let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
 
     let Some(request) = read_request(&mut stream) else {
-        respond(&mut stream, 400, Some(&json!({"error": "malformed request"})), &[]);
+        respond(
+            &mut stream,
+            400,
+            Some(&json!({"error": "malformed request"})),
+            &[],
+        );
         return;
     };
 
     if let Some(origin) = request.headers.get("origin") {
         if !origin_allowed(origin) {
-            respond(&mut stream, 403, Some(&json!({"error": "origin not allowed"})), &[]);
+            respond(
+                &mut stream,
+                403,
+                Some(&json!({"error": "origin not allowed"})),
+                &[],
+            );
             return;
         }
     }
@@ -193,7 +203,10 @@ fn parse_head(head: &[u8]) -> Option<(String, String, HashMap<String, String>)> 
 fn respond(stream: &mut TcpStream, status: u16, body: Option<&Value>, extra: &[(String, String)]) {
     let payload = body.map(|value| value.to_string().into_bytes());
 
-    let mut head = format!("HTTP/1.1 {status} {}\r\nConnection: close\r\n", reason(status));
+    let mut head = format!(
+        "HTTP/1.1 {status} {}\r\nConnection: close\r\n",
+        reason(status)
+    );
     match &payload {
         Some(bytes) => head.push_str(&format!(
             "Content-Type: application/json\r\nContent-Length: {}\r\n",
@@ -290,7 +303,10 @@ mod tests {
 
         let initialize = round_trip(port, r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#);
         assert_eq!(initialize["result"]["serverInfo"]["name"], "cdm");
-        assert_eq!(initialize["result"]["protocolVersion"], rpc::PROTOCOL_VERSION);
+        assert_eq!(
+            initialize["result"]["protocolVersion"],
+            rpc::PROTOCOL_VERSION
+        );
 
         let listed = round_trip(port, r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#);
         assert_eq!(listed["result"]["tools"][0]["name"], "echo");
@@ -332,7 +348,10 @@ mod tests {
         let (method, path, headers) = parse_head(&raw[..end]).expect("head");
         assert_eq!(method, "POST");
         assert_eq!(path, "/mcp");
-        assert_eq!(headers.get("content-length").map(String::as_str), Some("12"));
+        assert_eq!(
+            headers.get("content-length").map(String::as_str),
+            Some("12")
+        );
         assert_eq!(
             headers.get("origin").map(String::as_str),
             Some("http://localhost")

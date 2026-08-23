@@ -279,7 +279,9 @@ pub fn set_collapsed_groups(ids: Vec<String>) -> CmdResult<()> {
 
 #[tauri::command]
 pub fn session_sync_status() -> CmdResult<SessionSyncStatus> {
-    Ok(SessionSyncStatus { profile_ids: session_pool::status() })
+    Ok(SessionSyncStatus {
+        profile_ids: session_pool::status(),
+    })
 }
 
 #[tauri::command]
@@ -360,7 +362,9 @@ pub fn locate_binary(app: AppHandle) -> CmdResult<Option<String>> {
     let Some(picked) = picker.blocking_pick_file() else {
         return Ok(None);
     };
-    let picked = picked.into_path().map_err(|e| CdmError::Other(e.to_string()))?;
+    let picked = picked
+        .into_path()
+        .map_err(|e| CdmError::Other(e.to_string()))?;
     let resolved = platform.resolve_picked_binary(&picked)?;
 
     let mut current = settings::load();

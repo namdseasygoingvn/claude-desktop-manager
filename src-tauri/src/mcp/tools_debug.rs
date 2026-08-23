@@ -147,7 +147,8 @@ unsafe fn string_result(result: *mut AnyObject, error: *mut NSError) -> Result<S
 
 /// SAFETY: `error` may be null.
 unsafe fn describe(error: *mut NSError, fallback: &str) -> String {
-    error
-        .as_ref()
-        .map_or_else(|| fallback.to_string(), |e| e.localizedDescription().to_string())
+    error.as_ref().map_or_else(
+        || fallback.to_string(),
+        |e| e.localizedDescription().to_string(),
+    )
 }

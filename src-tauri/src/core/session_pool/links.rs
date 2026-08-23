@@ -65,16 +65,24 @@ fn same_path(a: &Path, b: &Path) -> bool {
 /// prior contents (05's merge rule). Creates `pool` first, so this is also the guarantee plan 09
 /// leans on when the pool does not exist yet.
 pub(crate) fn absorb(account_dir: &Path, pool: &Path) -> Result<()> {
-    fs::create_dir_all(pool).map_err(|e| CdmError::Io(format!("create {}: {e}", pool.display())))?;
+    fs::create_dir_all(pool)
+        .map_err(|e| CdmError::Io(format!("create {}: {e}", pool.display())))?;
     let plan = merge::plan(account_dir, pool);
     let outcome = merge::apply(account_dir, pool, &plan);
     for path in &plan.unreadable {
         log::warn!("session-pool merge skipped unreadable {}", path.display());
     }
     for (path, error) in &outcome.failed {
-        log::warn!("session-pool merge failed to copy {}: {error}", path.display());
+        log::warn!(
+            "session-pool merge failed to copy {}: {error}",
+            path.display()
+        );
     }
-    log::debug!("session-pool merged {} file(s) from {}", outcome.copied.len(), account_dir.display());
+    log::debug!(
+        "session-pool merged {} file(s) from {}",
+        outcome.copied.len(),
+        account_dir.display()
+    );
 
     let retired = dotted_sibling(account_dir, "retired");
     fs::rename(account_dir, &retired)
@@ -103,12 +111,18 @@ pub(crate) fn materialize(account_dir: &Path, pool: &Path) -> Result<()> {
     let retired = dotted_sibling(account_dir, "retired");
     if let Err(e) = fs::rename(account_dir, &retired) {
         let _ = fs::remove_dir_all(&staged);
-        return Err(CdmError::Io(format!("retire {}: {e}", account_dir.display())));
+        return Err(CdmError::Io(format!(
+            "retire {}: {e}",
+            account_dir.display()
+        )));
     }
     if let Err(e) = fs::rename(&staged, account_dir) {
         let _ = fs::rename(&retired, account_dir);
         let _ = fs::remove_dir_all(&staged);
-        return Err(CdmError::Io(format!("place {}: {e}", account_dir.display())));
+        return Err(CdmError::Io(format!(
+            "place {}: {e}",
+            account_dir.display()
+        )));
     }
 
     let _ = fs::remove_dir_all(&retired);
@@ -119,7 +133,11 @@ pub(crate) fn materialize(account_dir: &Path, pool: &Path) -> Result<()> {
 /// (`claude_code.rs:148-151` staging-name idiom); `tag` keeps the stage/retire pair a single
 /// swap needs from ever drawing the same sibling name.
 fn dotted_sibling(path: &Path, tag: &str) -> PathBuf {
-    let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
     path.with_file_name(format!(".cdm-{tag}-{name}-{}", random_id()))
 }
 
@@ -164,7 +182,9 @@ mod tests {
         let pool = tempfile::tempdir().unwrap();
         let elsewhere = tempfile::tempdir().unwrap();
         let link = sessions_dir(profile.path()).join("acct-1");
-        platform::current().link_dir(elsewhere.path(), &link).unwrap();
+        platform::current()
+            .link_dir(elsewhere.path(), &link)
+            .unwrap();
 
         assert_eq!(
             survey(profile.path(), pool.path()),
@@ -219,7 +239,9 @@ mod tests {
         let pool = tempfile::tempdir().unwrap();
         let upper = pool.path().to_string_lossy().to_uppercase();
         let link = sessions_dir(profile.path()).join("acct-1");
-        platform::current().link_dir(Path::new(&upper), &link).unwrap();
+        platform::current()
+            .link_dir(Path::new(&upper), &link)
+            .unwrap();
 
         assert_eq!(
             survey(profile.path(), pool.path()),
@@ -272,14 +294,22 @@ mod tests {
         let profile = tempfile::tempdir().unwrap();
         let pool = tempfile::tempdir().unwrap();
         fs::create_dir_all(pool.path().join("sub-existing")).unwrap();
-        fs::write(pool.path().join("sub-existing").join("local_other.json"), b"{}").unwrap();
+        fs::write(
+            pool.path().join("sub-existing").join("local_other.json"),
+            b"{}",
+        )
+        .unwrap();
         let account = sessions_dir(profile.path()).join("acct-1");
         fs::create_dir_all(account.join("sub-1")).unwrap();
         fs::write(account.join("sub-1").join("local_a.json"), b"{}").unwrap();
 
         absorb(&account, pool.path()).unwrap();
 
-        assert!(pool.path().join("sub-existing").join("local_other.json").exists());
+        assert!(pool
+            .path()
+            .join("sub-existing")
+            .join("local_other.json")
+            .exists());
         assert!(pool.path().join("sub-1").join("local_a.json").exists());
     }
 

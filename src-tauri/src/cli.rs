@@ -41,12 +41,21 @@ fn core_err(e: impl std::fmt::Display) -> Fail {
 }
 
 fn row(s: &ProfileStatus) -> Row<'_> {
-    (&s.profile.id, &s.profile.name, &s.profile.dir, s.running_pid.is_some())
+    (
+        &s.profile.id,
+        &s.profile.name,
+        &s.profile.dir,
+        s.running_pid.is_some(),
+    )
 }
 
 pub fn run(args: Vec<String>) -> i32 {
-    let argv: Vec<&str> =
-        args.iter().skip(1).map(String::as_str).filter(|a| !a.starts_with("-psn_")).collect();
+    let argv: Vec<&str> = args
+        .iter()
+        .skip(1)
+        .map(String::as_str)
+        .filter(|a| !a.starts_with("-psn_"))
+        .collect();
     match dispatch(&argv) {
         Ok(()) => EXIT_OK,
         Err(Fail(code, msg)) => {
@@ -159,7 +168,10 @@ fn delete(pos: &[&str], yes: bool) -> R {
     let status = resolve(pos[0])?;
     let (id, name, dir, running) = row(&status);
     if running {
-        return Err(fail(EXIT_REFUSED, format!("`{name}` ({dir}) is running; quit it first")));
+        return Err(fail(
+            EXIT_REFUSED,
+            format!("`{name}` ({dir}) is running; quit it first"),
+        ));
     }
     let ask = format!("delete `{name}` -> {dir}? the login session is lost [y/N] ");
     if !yes && !confirm(&ask) {
@@ -195,7 +207,10 @@ fn resolve(key: &str) -> Rv<ProfileStatus> {
         .collect();
     match hits.as_slice() {
         [i] => Ok(profiles.swap_remove(*i)),
-        [] => Err(fail(EXIT_NOT_FOUND, format!("no profile with id or name `{key}`"))),
+        [] => Err(fail(
+            EXIT_NOT_FOUND,
+            format!("no profile with id or name `{key}`"),
+        )),
         _ => {
             let ids: Vec<&str> = hits.iter().map(|&i| row(&profiles[i]).0).collect();
             let (n, ids) = (hits.len(), ids.join(", "));
@@ -216,13 +231,18 @@ fn confirm(prompt: &str) -> bool {
 fn other_instance_pid() -> Option<u32> {
     let exe = std::env::current_exe().ok()?;
     let exe = exe.to_str()?;
-    let out = Command::new("/bin/ps").args(["-Ao", "pid=,comm="]).output().ok()?;
+    let out = Command::new("/bin/ps")
+        .args(["-Ao", "pid=,comm="])
+        .output()
+        .ok()?;
     let me = std::process::id();
-    String::from_utf8_lossy(&out.stdout).lines().find_map(|line| {
-        let (pid, comm) = line.trim_start().split_once(' ')?;
-        let pid: u32 = pid.parse().ok()?;
-        (pid != me && comm.trim() == exe).then_some(pid)
-    })
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .find_map(|line| {
+            let (pid, comm) = line.trim_start().split_once(' ')?;
+            let pid: u32 = pid.parse().ok()?;
+            (pid != me && comm.trim() == exe).then_some(pid)
+        })
 }
 
 #[cfg(windows)]
@@ -237,10 +257,12 @@ fn other_instance_pid() -> Option<u32> {
         .output()
         .ok()?;
     let me = std::process::id();
-    String::from_utf8_lossy(&out.stdout).lines().find_map(|line| {
-        let pid: u32 = line.split(',').nth(1)?.trim_matches('"').parse().ok()?;
-        (pid != me).then_some(pid)
-    })
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .find_map(|line| {
+            let pid: u32 = line.split(',').nth(1)?.trim_matches('"').parse().ok()?;
+            (pid != me).then_some(pid)
+        })
 }
 
 #[cfg(windows)]
