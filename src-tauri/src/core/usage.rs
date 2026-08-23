@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -70,12 +71,26 @@ struct Sample {
 /// so every failure is ordinary and none of them is worth an error: the numbers are decoration
 /// on a profile list that has to render regardless.
 pub fn read(profile_dir: &Path) -> Option<Usage> {
+    read_at(profile_dir, now_ms())
+}
+
+fn read_at(profile_dir: &Path, now: i64) -> Option<Usage> {
     let mut usage = match usage_cache::read(profile_dir) {
         Ok(cached) => from_cache(cached),
         Err(miss) => from_history(profile_dir, miss.into())?,
     };
-    usage_rollover::apply(&mut usage);
+    usage_rollover::apply(&mut usage, now);
     Some(usage)
+}
+
+/// A clock we cannot read leaves every window looking unexpired, which is how this behaved
+/// before the rollover existed: stale figures beat hiding the numbers outright.
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|since| i64::try_from(since.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 fn from_cache(cached: CachedUsage) -> Usage {
@@ -129,6 +144,10 @@ fn percent(value: Option<&Value>) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Earlier than every reset the cache fixtures carry, so the rollover leaves them alone and
+    /// these assertions hold whenever the suite runs.
+    const BEFORE_FIXTURE_RESETS: i64 = 1_786_000_000_000;
 
     fn profile_dir(history: &str) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
@@ -243,7 +262,7 @@ mod tests {
             br#"{"five_hour":{"utilization":8.0,"resets_at":"2026-08-08T14:09:59.822762+00:00"},
                  "seven_day":{"utilization":27.0,"resets_at":null}}"#,
         );
-        let usage = read(dir.path()).unwrap();
+        let usage = read_at(dir.path(), BEFORE_FIXTURE_RESETS).unwrap();
         assert_eq!(usage.source, UsageSource::Cache);
         assert_eq!(usage.five_hour, Some(8));
         assert_eq!(usage.seven_day, Some(27));
@@ -261,7 +280,7 @@ mod tests {
                  "seven_day":{"utilization":27.0,"resets_at":null},
                  "limits":[{"kind":"weekly_scoped","group":"weekly","percent":9,"severity":"normal","resets_at":"2026-08-19T11:59:59.750842+00:00","scope":{"model":{"id":null,"display_name":"Fable"},"surface":null},"is_active":false}]}"#,
         );
-        let usage = read(dir.path()).unwrap();
+        let usage = read_at(dir.path(), BEFORE_FIXTURE_RESETS).unwrap();
         assert_eq!(usage.seven_day_scoped, Some(9));
         assert_eq!(usage.seven_day_scoped_model, Some("Fable".to_string()));
         assert!(usage.seven_day_scoped_resets_at.is_some());
