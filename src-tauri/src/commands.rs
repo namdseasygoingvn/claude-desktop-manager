@@ -74,7 +74,7 @@ pub struct SessionSyncStatus {
     pub profile_ids: Vec<String>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_profiles() -> CmdResult<Vec<ProfileStatus>> {
     Ok(profile::list()?)
 }
@@ -119,7 +119,7 @@ pub fn list_adoptable() -> CmdResult<Vec<AdoptCandidate>> {
     Ok(profile::adoptable()?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_groups() -> CmdResult<groups::GroupList> {
     Ok(groups::list()?)
 }
@@ -277,7 +277,7 @@ pub fn set_collapsed_groups(ids: Vec<String>) -> CmdResult<()> {
     Ok(settings::save(&current)?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn session_sync_status() -> CmdResult<SessionSyncStatus> {
     Ok(SessionSyncStatus {
         profile_ids: session_pool::status(),

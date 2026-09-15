@@ -346,7 +346,7 @@ export function onWindowShown(handler: () => void): void {
       if (payload) handler();
     });
   } catch {
-    /* not running inside Tauri */
+    // Not running inside Tauri: the DOM event is the only focus signal there is.
+    window.addEventListener("focus", handler);
   }
-  window.addEventListener("focus", handler);
 }

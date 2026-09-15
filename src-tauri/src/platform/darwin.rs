@@ -1,6 +1,6 @@
 //! macOS adapter. Verified against Claude Desktop 1.25927.0 on Darwin 25.5.
 
-use super::{Platform, ProfileProcesses};
+use super::{Platform, ProcessTable, ProfileProcesses};
 use crate::core::types::{CdmError, Result};
 use std::ffi::{CStr, CString};
 use std::fs::File;
@@ -84,7 +84,7 @@ impl Platform for Darwin {
         super::spawn_detached(binary, data_dir)
     }
 
-    fn is_running(&self, data_dir: &Path) -> Result<Option<u32>> {
+    fn is_running_in(&self, table: &ProcessTable, data_dir: &Path) -> Result<Option<u32>> {
         // Chromium's `SingletonLock` is never created — Claude never calls
         // requestSingleInstanceLock — so leveldb's LOCK is the only liveness signal, and only
         // its held-ness counts: the file itself outlives a clean shutdown.
@@ -92,7 +92,7 @@ impl Platform for Darwin {
         if lock.present && !lock.held {
             return Ok(None);
         }
-        if let Some(pid) = super::processes_for(data_dir).main.or(lock.holder) {
+        if let Some(pid) = super::processes_for(table, data_dir).main.or(lock.holder) {
             return Ok(Some(pid));
         }
         if lock.held {
@@ -123,7 +123,8 @@ impl Platform for Darwin {
 
         // Children that *did* re-group (local-agent-mode runs each agent in its own session)
         // escape the group kill and are reachable only by the data dir in their argv.
-        let ProfileProcesses { all, .. } = super::processes_for(data_dir);
+        let ProfileProcesses { all, .. } =
+            super::processes_for(&ProcessTable::snapshot(), data_dir);
         for orphan in all {
             signal(orphan, libc::SIGKILL);
         }

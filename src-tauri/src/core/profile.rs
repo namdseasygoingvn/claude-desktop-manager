@@ -63,13 +63,14 @@ pub fn list() -> Result<Vec<ProfileStatus>> {
     let plat = platform::current();
     let root = plat.profiles_root()?;
     let reg = registry::load()?;
+    let processes = platform::ProcessTable::snapshot();
 
     Ok(reg
         .profiles
         .into_iter()
         .map(|profile| {
             let dir = root.join(&profile.dir);
-            let running_pid = plat.is_running(&dir).unwrap_or(None);
+            let running_pid = plat.is_running_in(&processes, &dir).unwrap_or(None);
             let is_default_install = is_unmanaged_dir(&profile.dir);
             ProfileStatus {
                 profile,

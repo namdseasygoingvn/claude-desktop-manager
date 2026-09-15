@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
-use sysinfo::System;
+use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
 
 #[cfg(target_os = "macos")]
 mod darwin;
@@ -52,7 +52,12 @@ pub trait Platform: Send + Sync {
     /// Spawn detached and yield the main pid.
     fn launch(&self, binary: &Path, data_dir: &Path) -> Result<u32>;
     /// `Ok(Some(pid))` running, `Ok(None)` not running, `Err` undecidable — never guess `None`.
-    fn is_running(&self, data_dir: &Path) -> Result<Option<u32>>;
+    fn is_running(&self, data_dir: &Path) -> Result<Option<u32>> {
+        self.is_running_in(&ProcessTable::snapshot(), data_dir)
+    }
+    /// `is_running` against a table the caller already read, so a loop over profiles pays for
+    /// the process scan once.
+    fn is_running_in(&self, table: &ProcessTable, data_dir: &Path) -> Result<Option<u32>>;
     /// Graceful stop escalating to a hard kill, then sweep helpers still holding `data_dir`.
     fn terminate(&self, pid: u32, data_dir: &Path) -> Result<()>;
     /// Move to Trash / Recycle Bin. `Err` when the platform has none available.
@@ -281,6 +286,21 @@ pub(crate) struct ProfileProcesses {
     pub all: Vec<u32>,
 }
 
+/// One read of the process table. Only argv and exe are asked for: `System::new_all` also
+/// samples CPU, memory and per-process disk counters, none of which the matching below reads.
+pub struct ProcessTable(System);
+
+impl ProcessTable {
+    pub fn snapshot() -> Self {
+        let processes = ProcessRefreshKind::nothing()
+            .with_cmd(UpdateKind::Always)
+            .with_exe(UpdateKind::Always);
+        Self(System::new_with_specifics(
+            RefreshKind::nothing().with_processes(processes),
+        ))
+    }
+}
+
 /// Two different questions, deliberately answered by two different rules.
 ///
 /// `main` is the Electron app, and only an exact `--user-data-dir=` may name it — a claude-code
@@ -290,14 +310,13 @@ pub(crate) struct ProfileProcesses {
 /// *anywhere*: crashpad carries it in `--database=`, local-agent-mode children in `--plugin-dir`
 /// and in their own exec path. A flag-only sweep saw none of them, so they outlived every quit
 /// and went on burning a core each as orphans.
-pub(crate) fn processes_for(data_dir: &Path) -> ProfileProcesses {
+pub(crate) fn processes_for(table: &ProcessTable, data_dir: &Path) -> ProfileProcesses {
     let targets = [data_dir.to_path_buf(), canonical(data_dir)];
     let own = std::process::id();
-    let system = System::new_all();
     let mut main = Vec::new();
     let mut all = Vec::new();
 
-    for (pid, process) in system.processes() {
+    for (pid, process) in table.0.processes() {
         let pid = pid.as_u32();
         if pid == own {
             continue;

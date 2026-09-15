@@ -4,7 +4,7 @@
 //! behaviour below is still a projection. See `plan/01-platform-adapter.md` for the checks that
 //! close each one.
 
-use super::{Platform, ProfileProcesses};
+use super::{Platform, ProcessTable, ProfileProcesses};
 use crate::core::types::{CdmError, Result};
 use std::fs::File;
 use std::os::windows::process::CommandExt;
@@ -96,9 +96,9 @@ impl Platform for Win32 {
         super::spawn_detached(binary, data_dir)
     }
 
-    fn is_running(&self, data_dir: &Path) -> Result<Option<u32>> {
+    fn is_running_in(&self, table: &ProcessTable, data_dir: &Path) -> Result<Option<u32>> {
         // The argv scan leads here because the lock probe cannot name a pid on Windows.
-        if let Some(pid) = super::processes_for(data_dir).main {
+        if let Some(pid) = super::processes_for(table, data_dir).main {
             return Ok(Some(pid));
         }
         // UNVERIFIED: leveldb's Windows env opens LOCK with no sharing, so a sharing violation
@@ -121,7 +121,8 @@ impl Platform for Win32 {
             super::wait_until(super::KILL_GRACE, || !alive(pid));
         }
 
-        let ProfileProcesses { all, .. } = super::processes_for(data_dir);
+        let ProfileProcesses { all, .. } =
+            super::processes_for(&ProcessTable::snapshot(), data_dir);
         for orphan in all {
             taskkill(orphan, true);
         }
