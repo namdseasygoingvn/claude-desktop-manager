@@ -180,9 +180,24 @@ async function refresh(): Promise<void> {
   const ids = new Set(state.profiles.map((status) => status.profile.id));
   for (const id of state.missing) if (!ids.has(id)) state.missing.delete(id);
   if (!state.selectedId || !ids.has(state.selectedId)) {
-    state.selectedId = visible()[0]?.profile.id ?? null;
+    state.selectedId = defaultSelection();
   }
   render();
+}
+
+/** The row most recently launched, or the top one when nothing has ever been launched. */
+function defaultSelection(): string | null {
+  const rows = visible();
+  let latest: ProfileStatus | undefined;
+  let latestAt = Number.NEGATIVE_INFINITY;
+  for (const row of rows) {
+    const usedAt = row.profile.lastUsedAt ? Date.parse(row.profile.lastUsedAt) : NaN;
+    if (usedAt > latestAt) {
+      latest = row;
+      latestAt = usedAt;
+    }
+  }
+  return (latest ?? rows[0])?.profile.id ?? null;
 }
 
 async function discover(): Promise<void> {
