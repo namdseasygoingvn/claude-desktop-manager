@@ -118,6 +118,8 @@ export const t = {
     openAtStartHint: `Uncheck to start straight in the ${nouns.tray}, with no window.`,
     launchAtLogin: "Open with System startup",
     launchAtLoginHint: `Start ${appName} automatically when you ${nouns.signIn} to ${nouns.machine}.`,
+    openLatestProfile: "Open latest profile at startup",
+    openLatestProfileHint: `Launch the most recently used profile when ${appName} starts.`,
     saveFailed: "Couldn't save that setting.",
   },
 

@@ -23,7 +23,7 @@ const DOWNLOAD_URL: &str = "https://claude.com/download";
 pub type CmdResult<T> = std::result::Result<T, CommandError>;
 
 /// The IPC error shape. `kind` is a stable token; the frontend owns the copy for each one.
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandError {
     pub kind: &'static str,
@@ -54,6 +54,7 @@ impl From<CdmError> for CommandError {
 #[serde(rename_all = "camelCase")]
 pub struct GeneralSettings {
     pub open_preferences_at_start: bool,
+    pub open_latest_profile_at_start: bool,
     pub show_usage_limits: bool,
     pub launch_at_login: bool,
     pub theme: Theme,
@@ -208,6 +209,7 @@ pub fn get_general_settings(app: AppHandle) -> CmdResult<GeneralSettings> {
     let stored = settings::load();
     Ok(GeneralSettings {
         open_preferences_at_start: stored.open_preferences_at_start,
+        open_latest_profile_at_start: stored.open_latest_profile_at_start,
         show_usage_limits: stored.show_usage_limits,
         // An unreadable login item reads as off: the checkbox then offers to set it.
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
@@ -219,6 +221,13 @@ pub fn get_general_settings(app: AppHandle) -> CmdResult<GeneralSettings> {
 pub fn set_open_preferences_at_start(enabled: bool) -> CmdResult<()> {
     let mut current = settings::load();
     current.open_preferences_at_start = enabled;
+    Ok(settings::save(&current)?)
+}
+
+#[tauri::command]
+pub fn set_open_latest_profile_at_start(enabled: bool) -> CmdResult<()> {
+    let mut current = settings::load();
+    current.open_latest_profile_at_start = enabled;
     Ok(settings::save(&current)?)
 }
 

@@ -313,6 +313,17 @@ button {
   margin: 2px 0 0;
 }
 
+.settings-toggle:has(input:disabled) {
+  opacity: 0.5;
+}
+
+.settings-dependents {
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+  padding-left: 24px;
+}
+
 /* The MCP section: a second block inside General, ruled off from the preferences above it. */
 
 .settings-section {

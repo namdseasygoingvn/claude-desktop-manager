@@ -6,6 +6,7 @@ mod commands;
 mod core;
 mod mcp;
 mod platform;
+mod startup;
 mod tray;
 mod tray_icons;
 mod updater;
@@ -77,6 +78,7 @@ fn run_manager() {
             commands::toggle_admin_prune,
             commands::get_general_settings,
             commands::set_open_preferences_at_start,
+            commands::set_open_latest_profile_at_start,
             commands::set_show_usage_limits,
             commands::set_launch_at_login,
             commands::set_theme,
@@ -117,10 +119,7 @@ fn run_manager() {
             let _ = tray::apply_theme(app.handle(), stored.theme);
             window_size::restore(app.handle(), stored.window_size);
             // Last, so the tray already exists behind the window the user is about to see.
-            // Failing to show is not worth refusing to start over: the tray still works.
-            if stored.open_preferences_at_start {
-                let _ = tray::show_preferences(app.handle());
-            }
+            startup::schedule(app.handle());
             Ok(())
         })
         .on_window_event(tray::on_window_event);

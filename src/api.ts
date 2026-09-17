@@ -13,6 +13,8 @@ const UPDATE_PROGRESS_EVENT = "cdm://update-progress";
 
 /** Mirrors `admin::FAILED_EVENT`. */
 const ADMIN_WEBVIEW_FAILED_EVENT = "cdm://admin-webview-failed";
+/** Mirrors `startup::LAUNCH_FAILED_EVENT`. */
+const STARTUP_LAUNCH_FAILED_EVENT = "cdm://startup-launch-failed";
 
 export interface Profile {
   id: string;
@@ -75,6 +77,7 @@ export type Theme = "light" | "dark" | "system";
 /** The General tab. `launchAtLogin` is read back from the OS, not from a file cdm owns. */
 export interface GeneralSettings {
   openPreferencesAtStart: boolean;
+  openLatestProfileAtStart: boolean;
   launchAtLogin: boolean;
   showUsageLimits: boolean;
   theme: Theme;
@@ -243,6 +246,8 @@ export const doctor = () => call<DoctorReport>("doctor");
 export const getGeneralSettings = () => call<GeneralSettings>("get_general_settings");
 export const setOpenPreferencesAtStart = (enabled: boolean) =>
   call<void>("set_open_preferences_at_start", { enabled });
+export const setOpenLatestProfileAtStart = (enabled: boolean) =>
+  call<void>("set_open_latest_profile_at_start", { enabled });
 export const setLaunchAtLogin = (enabled: boolean) =>
   call<void>("set_launch_at_login", { enabled });
 export const setShowUsageLimits = (enabled: boolean) =>
@@ -335,6 +340,19 @@ export function onUpdateProgress(handler: (progress: UpdateProgress) => void): v
 export function onAdminWebviewFailed(handler: () => void): void {
   try {
     void listen(ADMIN_WEBVIEW_FAILED_EVENT, () => handler());
+  } catch {
+    /* not running inside Tauri */
+  }
+}
+
+export function onStartupLaunchFailed(
+  handler: (profile: Profile, error: CdmError) => void,
+): void {
+  try {
+    void listen<{ profile: Profile; error: unknown }>(
+      STARTUP_LAUNCH_FAILED_EVENT,
+      ({ payload }) => handler(payload.profile, toCdmError(payload.error)),
+    );
   } catch {
     /* not running inside Tauri */
   }

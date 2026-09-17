@@ -6,6 +6,7 @@ const THEMES: readonly Theme[] = ["light", "dark", "system"];
 
 export interface GeneralOptions {
   openPreferencesAtStart: boolean;
+  openLatestProfileAtStart: boolean;
   launchAtLogin: boolean;
   showUsageLimits: boolean;
   theme: Theme;
@@ -13,6 +14,7 @@ export interface GeneralOptions {
   /** Null until the first status read answers, which is the only time the section is absent. */
   mcp: McpOptions | null;
   onOpenPreferencesAtStart: (enabled: boolean) => void;
+  onOpenLatestProfileAtStart: (enabled: boolean) => void;
   onLaunchAtLogin: (enabled: boolean) => void;
   onShowUsageLimits: (enabled: boolean) => void;
   onTheme: (theme: Theme) => void;
@@ -37,19 +39,31 @@ export function renderGeneral(options: GeneralOptions): HTMLElement {
       onChange: options.onTheme,
     }),
     toggle({
-      focusKey: "open-at-start",
-      label: t.general.openAtStart,
-      hint: t.general.openAtStartHint,
-      checked: options.openPreferencesAtStart,
-      onChange: options.onOpenPreferencesAtStart,
-    }),
-    toggle({
       focusKey: "launch-at-login",
       label: t.general.launchAtLogin,
       hint: t.general.launchAtLoginHint,
       checked: options.launchAtLogin,
       onChange: options.onLaunchAtLogin,
     }),
+    // Both only happen on a start the login item made, so neither is offered without it.
+    dependents(options.launchAtLogin, [
+      toggle({
+        focusKey: "open-at-start",
+        label: t.general.openAtStart,
+        hint: t.general.openAtStartHint,
+        checked: options.openPreferencesAtStart,
+        disabled: !options.launchAtLogin,
+        onChange: options.onOpenPreferencesAtStart,
+      }),
+      toggle({
+        focusKey: "open-latest-profile",
+        label: t.general.openLatestProfile,
+        hint: t.general.openLatestProfileHint,
+        checked: options.openLatestProfileAtStart,
+        disabled: !options.launchAtLogin,
+        onChange: options.onOpenLatestProfileAtStart,
+      }),
+    ]),
     toggle({
       focusKey: "show-usage-limits",
       label: t.usage.show,
@@ -71,6 +85,7 @@ export interface ToggleOptions {
   label: string;
   hint: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: (enabled: boolean) => void;
 }
 
@@ -81,6 +96,7 @@ export function toggle(options: ToggleOptions): HTMLElement {
   const input = document.createElement("input");
   input.type = "checkbox";
   input.checked = options.checked;
+  input.disabled = options.disabled ?? false;
   input.dataset.focusKey = options.focusKey;
   input.addEventListener("change", () => options.onChange(input.checked));
 
@@ -97,6 +113,14 @@ export function toggle(options: ToggleOptions): HTMLElement {
 
   row.append(input, text);
   return row;
+}
+
+function dependents(enabled: boolean, rows: HTMLElement[]): HTMLElement {
+  const group = document.createElement("div");
+  group.className = "settings-dependents";
+  group.setAttribute("aria-disabled", String(!enabled));
+  group.append(...rows);
+  return group;
 }
 
 interface SegmentedOptions<T extends string> {

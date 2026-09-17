@@ -18,6 +18,7 @@ pub fn all(app: &AppHandle) -> Vec<Tool> {
         get_settings(app),
         set_theme(app),
         set_open_preferences_at_start(),
+        set_open_latest_profile_at_start(),
         set_show_usage_limits(app),
         set_launch_at_login(app),
         get_usage(),
@@ -71,6 +72,19 @@ fn set_open_preferences_at_start() -> Tool {
             let enabled = require_bool(args, "enabled")?;
             commands::set_open_preferences_at_start(enabled).map_err(detail)?;
             Ok(json!({"openPreferencesAtStart": enabled}))
+        },
+    )
+}
+
+fn set_open_latest_profile_at_start() -> Tool {
+    tool(
+        "set_open_latest_profile_at_start",
+        "Whether the most recently used profile launches a moment after the app starts. Like open-at-start, it only takes effect while the login item is on.",
+        toggle_args("On to launch the latest profile at startup."),
+        |args| {
+            let enabled = require_bool(args, "enabled")?;
+            commands::set_open_latest_profile_at_start(enabled).map_err(detail)?;
+            Ok(json!({"openLatestProfileAtStart": enabled}))
         },
     )
 }

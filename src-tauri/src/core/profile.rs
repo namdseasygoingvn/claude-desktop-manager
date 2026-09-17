@@ -82,6 +82,17 @@ pub fn list() -> Result<Vec<ProfileStatus>> {
         .collect())
 }
 
+/// The profile launched most recently, or None when nothing has ever been launched.
+pub fn latest_used() -> Result<Option<Profile>> {
+    let reg = registry::load()?;
+    // Every stamp is the same fixed-width UTC shape, so string order is time order.
+    Ok(reg
+        .profiles
+        .into_iter()
+        .filter(|profile| profile.last_used_at.is_some())
+        .max_by(|a, b| a.last_used_at.cmp(&b.last_used_at)))
+}
+
 pub fn launch(id: &str) -> Result<u32> {
     let plat = platform::current();
     let root = plat.profiles_root()?;

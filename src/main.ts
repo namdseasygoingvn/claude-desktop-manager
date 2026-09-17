@@ -22,6 +22,7 @@ import {
   onAdminWebviewFailed,
   onTrayEvent,
   onUpdateProgress,
+  onStartupLaunchFailed,
   onWindowShown,
   openConfig,
   restartApp,
@@ -31,6 +32,7 @@ import {
   setLaunchAtLogin,
   setMcpEnabled,
   setMcpPort,
+  setOpenLatestProfileAtStart,
   setOpenPreferencesAtStart,
   setShowUsageLimits,
   setTheme,
@@ -129,6 +131,7 @@ const state = {
   update: { phase: "idle" } as UpdateState,
   settings: {
     openPreferencesAtStart: true,
+    openLatestProfileAtStart: false,
     launchAtLogin: false,
     showUsageLimits: true,
     theme: "system",
@@ -315,6 +318,7 @@ function generalPane(): HTMLElement {
   return pane("settings", [
     renderGeneral({
       openPreferencesAtStart: state.settings.openPreferencesAtStart,
+      openLatestProfileAtStart: state.settings.openLatestProfileAtStart,
       launchAtLogin: state.settings.launchAtLogin,
       showUsageLimits: state.settings.showUsageLimits,
       theme: state.settings.theme,
@@ -328,6 +332,10 @@ function generalPane(): HTMLElement {
       onOpenPreferencesAtStart: (enabled) => {
         state.settings.openPreferencesAtStart = enabled;
         void store(setOpenPreferencesAtStart(enabled));
+      },
+      onOpenLatestProfileAtStart: (enabled) => {
+        state.settings.openLatestProfileAtStart = enabled;
+        void store(setOpenLatestProfileAtStart(enabled));
       },
       onLaunchAtLogin: (enabled) => {
         state.settings.launchAtLogin = enabled;
@@ -1018,6 +1026,10 @@ onTrayEvent("locateBinary", () => {
   showBinaryNotFound(() => void refresh());
 });
 onUpdateProgress(onProgress);
+onStartupLaunchFailed((profile, error) => {
+  void refresh();
+  showLaunchFailed(error, { operation: "launch", profile, onRetry: () => launch(profile.id) });
+});
 onAdminWebviewFailed(() => {
   if (state.tab !== "admin" || state.adminError) return;
   state.adminError = t.admin.loadFailed;

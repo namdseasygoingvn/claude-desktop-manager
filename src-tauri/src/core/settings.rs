@@ -17,6 +17,7 @@ pub const SETTINGS_FILE: &str = "settings.json";
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub open_preferences_at_start: bool,
+    pub open_latest_profile_at_start: bool,
     pub show_usage_limits: bool,
     pub theme: Theme,
     /// None until the divider is dragged, so the stylesheet owns the starting width alone.
@@ -44,6 +45,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             open_preferences_at_start: true,
+            open_latest_profile_at_start: false,
             show_usage_limits: true,
             theme: Theme::default(),
             sidebar_width: None,
@@ -88,6 +90,11 @@ mod tests {
     }
 
     #[test]
+    fn a_fresh_install_does_not_launch_a_profile() {
+        assert!(!Settings::default().open_latest_profile_at_start);
+    }
+
+    #[test]
     fn a_file_written_by_an_older_build_falls_back_to_the_defaults() {
         let parsed: Settings = serde_json::from_str(r#"{"somethingElse":1}"#).unwrap();
         assert_eq!(parsed, Settings::default());
@@ -97,6 +104,7 @@ mod tests {
     fn the_stored_key_is_camel_case() {
         let settings = Settings {
             open_preferences_at_start: false,
+            open_latest_profile_at_start: true,
             show_usage_limits: false,
             theme: Theme::Dark,
             sidebar_width: Some(320),
@@ -112,7 +120,7 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         assert_eq!(
             json,
-            r#"{"openPreferencesAtStart":false,"showUsageLimits":false,"theme":"dark","sidebarWidth":320,"windowSize":{"width":900,"height":700},"collapsedGroups":["g_1"],"mcpEnabled":false,"mcpPort":20209}"#
+            r#"{"openPreferencesAtStart":false,"openLatestProfileAtStart":true,"showUsageLimits":false,"theme":"dark","sidebarWidth":320,"windowSize":{"width":900,"height":700},"collapsedGroups":["g_1"],"mcpEnabled":false,"mcpPort":20209}"#
         );
     }
 
