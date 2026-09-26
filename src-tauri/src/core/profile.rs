@@ -176,7 +176,7 @@ pub fn delete(id: &str) -> Result<()> {
     }
 
     reg.profiles.remove(idx);
-    let _ = session_pool::membership::remove(id);
+    let _ = session_pool::membership::forget(id);
     registry::save(&reg)
 }
 
@@ -535,27 +535,27 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn deleting_a_member_profile_clears_its_membership() {
+    fn deleting_an_opted_out_profile_clears_its_opt_out() {
         let home = tempfile::tempdir().unwrap();
         with_home(home.path(), || {
             registry::save(&registered(&["Claude-Test"])).unwrap();
-            session_pool::membership::add("p_Claude-Test").unwrap();
+            session_pool::membership::remove("p_Claude-Test").unwrap();
 
             delete("p_Claude-Test").unwrap();
 
-            assert!(!session_pool::membership::is_member("p_Claude-Test"));
+            assert!(session_pool::membership::load().excluded_profile_ids.is_empty());
         });
     }
 
     #[test]
     #[cfg(unix)]
-    fn deleting_a_profile_that_was_never_a_member_still_succeeds() {
+    fn deleting_a_profile_that_never_opted_out_still_succeeds() {
         let home = tempfile::tempdir().unwrap();
         with_home(home.path(), || {
             registry::save(&registered(&["Claude-Test"])).unwrap();
 
             assert!(delete("p_Claude-Test").is_ok());
-            assert!(!session_pool::membership::is_member("p_Claude-Test"));
+            assert!(session_pool::membership::load().excluded_profile_ids.is_empty());
         });
     }
 

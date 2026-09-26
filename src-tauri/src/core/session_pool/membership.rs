@@ -8,20 +8,22 @@ use super::super::types::Result;
 use crate::platform;
 
 pub const SESSION_SYNC_FILE: &str = "session-sync.json";
-pub const MEMBERSHIP_VERSION: u32 = 1;
+pub const MEMBERSHIP_VERSION: u32 = 2;
 
+/// Every profile is a member unless it opted out. A v1 file listed members instead; its
+/// `profileIds` key is ignored, so every profile becomes a member on upgrade.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Membership {
     pub version: u32,
-    pub profile_ids: Vec<String>,
+    pub excluded_profile_ids: Vec<String>,
 }
 
 impl Default for Membership {
     fn default() -> Self {
         Self {
             version: MEMBERSHIP_VERSION,
-            profile_ids: Vec::new(),
+            excluded_profile_ids: Vec::new(),
         }
     }
 }
@@ -48,27 +50,38 @@ pub fn save(membership: &Membership) -> Result<()> {
     persist::write_json(&dir, SESSION_SYNC_FILE, membership, "session-sync")
 }
 
-/// O(n) scan of the loaded list; n is the profile count (single digits in practice).
 pub fn is_member(profile_id: &str) -> bool {
-    load().profile_ids.iter().any(|id| id == profile_id)
+    !is_excluded(&load(), profile_id)
 }
 
-/// Idempotent: no write when `profile_id` is already present.
+pub fn is_excluded(membership: &Membership, profile_id: &str) -> bool {
+    membership
+        .excluded_profile_ids
+        .iter()
+        .any(|id| id == profile_id)
+}
+
+/// Idempotent: no write when `profile_id` is already a member.
 pub fn add(profile_id: &str) -> Result<()> {
     let mut membership = load();
-    if !insert(&mut membership.profile_ids, profile_id) {
+    if !remove_id(&mut membership.excluded_profile_ids, profile_id) {
         return Ok(());
     }
     save(&membership)
 }
 
-/// Idempotent: no write when `profile_id` is already absent.
+/// Idempotent: no write when `profile_id` already opted out.
 pub fn remove(profile_id: &str) -> Result<()> {
     let mut membership = load();
-    if !remove_id(&mut membership.profile_ids, profile_id) {
+    if !insert(&mut membership.excluded_profile_ids, profile_id) {
         return Ok(());
     }
     save(&membership)
+}
+
+/// Drops a deleted profile's opt-out so a reminted id never inherits it.
+pub fn forget(profile_id: &str) -> Result<()> {
+    add(profile_id)
 }
 
 fn insert(profile_ids: &mut Vec<String>, profile_id: &str) -> bool {
@@ -90,21 +103,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_fresh_install_has_no_members() {
+    fn a_fresh_install_excludes_nobody() {
         assert_eq!(Membership::default().version, MEMBERSHIP_VERSION);
-        assert!(Membership::default().profile_ids.is_empty());
+        assert!(Membership::default().excluded_profile_ids.is_empty());
     }
 
     #[test]
-    fn a_file_written_by_an_older_build_falls_back_to_the_defaults() {
-        let parsed: Membership = serde_json::from_str(r#"{"somethingElse":1}"#).unwrap();
-        assert_eq!(parsed, Membership::default());
+    fn a_v1_member_list_is_dropped_so_every_profile_is_a_member() {
+        let parsed: Membership =
+            serde_json::from_str(r#"{"version":1,"profileIds":["p1"]}"#).unwrap();
+        assert!(parsed.excluded_profile_ids.is_empty());
+        assert!(!is_excluded(&parsed, "p2"));
     }
 
     #[test]
     fn the_stored_key_is_camel_case() {
         let json = serde_json::to_string(&Membership::default()).unwrap();
-        assert_eq!(json, r#"{"version":1,"profileIds":[]}"#);
+        assert_eq!(json, r#"{"version":2,"excludedProfileIds":[]}"#);
     }
 
     #[test]

@@ -28,9 +28,9 @@ pub struct JoinReport {
 }
 
 /// Links every account-uuid dir under the profile's `claude-code-sessions/` to the shared pool,
-/// merging prior content in first (D7), and records the profile as a member. Refuses while the
-/// profile is running (S5). Membership is written last, so a crash mid-join leaves every
-/// already-linked account dir as `OurLink` and a re-run only retries the membership write.
+/// merging prior content in first (D7), and clears any opt-out. Refuses while the profile is
+/// running (S5). Membership is written last, so a crash mid-join leaves every already-linked
+/// account dir as `OurLink` and a re-run only retries the membership write.
 pub fn join(profile_id: &str) -> Result<JoinReport> {
     let plat = platform::current();
     let root = plat.profiles_root()?;
@@ -41,9 +41,6 @@ pub fn join(profile_id: &str) -> Result<JoinReport> {
     if plat.is_running(&profile_dir)?.is_some() {
         return Err(CdmError::ProfileRunning(reg.profiles[idx].name.clone()));
     }
-    if membership::is_member(profile_id) {
-        return Ok(JoinReport::default());
-    }
 
     let pool = pool_root()?;
     let report = link_profile(&profile_dir, &pool)?;
@@ -52,10 +49,20 @@ pub fn join(profile_id: &str) -> Result<JoinReport> {
     Ok(report)
 }
 
-/// The membership read, re-exported at the orchestration boundary so callers (plan 11) never
-/// reach into `membership.rs` directly. Infallible: empty on a missing store.
+/// Ids of every registered profile that has not opted out, re-exported at the orchestration
+/// boundary so callers never reach into `membership.rs` directly. Infallible: empty when the
+/// registry cannot be read.
 pub fn status() -> Vec<String> {
-    membership::load().profile_ids
+    let membership = membership::load();
+    registry::load()
+        .map(|reg| {
+            reg.profiles
+                .into_iter()
+                .map(|p| p.id)
+                .filter(|id| !membership::is_excluded(&membership, id))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Reverts every account-uuid dir this profile had linked into the pool back to a real,
@@ -364,6 +371,41 @@ mod join_tests {
 }
 
 #[cfg(test)]
+mod default_membership_tests {
+    #[cfg(unix)]
+    use super::home_guard::with_home;
+    #[cfg(unix)]
+    use super::test_support::seed_profile;
+    #[cfg(unix)]
+    use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn a_fresh_profile_is_a_member_by_default() {
+        let home = tempfile::tempdir().unwrap();
+        with_home(home.path(), || {
+            seed_profile("p1", "Claude-Test");
+
+            assert!(membership::is_member("p1"));
+            assert_eq!(status(), vec!["p1".to_string()]);
+        });
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn status_lists_only_registered_profiles_that_did_not_opt_out() {
+        let home = tempfile::tempdir().unwrap();
+        with_home(home.path(), || {
+            seed_profile("p1", "Claude-Test");
+            membership::remove("p1").unwrap();
+            membership::remove("ghost").unwrap();
+
+            assert!(status().is_empty());
+        });
+    }
+}
+
+#[cfg(test)]
 mod leave_tests {
     #[cfg(unix)]
     use super::home_guard::with_home;
@@ -530,6 +572,7 @@ mod reconcile_tests {
         let home = tempfile::tempdir().unwrap();
         with_home(home.path(), || {
             let profile_dir = seed_profile("p1", "Claude-Test");
+            membership::remove("p1").unwrap();
             let pool = pool_root().unwrap();
             fs::create_dir_all(pool.join("sub-1")).unwrap();
             fs::write(pool.join("sub-1").join("local_a.json"), b"{}").unwrap();
@@ -551,6 +594,7 @@ mod reconcile_tests {
         let home = tempfile::tempdir().unwrap();
         with_home(home.path(), || {
             let profile_dir = seed_profile("p1", "Claude-Test");
+            membership::remove("p1").unwrap();
             seed_session(&profile_dir, "acct-1", "sub-1", "local_a.json");
             let account = account_dir(&profile_dir, "acct-1");
 
@@ -568,6 +612,7 @@ mod reconcile_tests {
         let home = tempfile::tempdir().unwrap();
         with_home(home.path(), || {
             let profile_dir = seed_profile("p1", "Claude-Test");
+            membership::remove("p1").unwrap();
             let elsewhere = tempfile::tempdir().unwrap();
             let account = account_dir(&profile_dir, "acct-1");
             fs::create_dir_all(account.parent().unwrap()).unwrap();
