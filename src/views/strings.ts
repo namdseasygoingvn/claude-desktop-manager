@@ -121,6 +121,15 @@ export const t = {
     openLatestProfile: "Open latest profile at startup",
     openLatestProfileHint: `Launch the most recently used profile when ${appName} starts.`,
     saveFailed: "Couldn't save that setting.",
+    microphone: "Microphone",
+    requestMicrophone: "Request mic access",
+    microphoneStates: {
+      notDetermined: "Not asked yet. Profiles need this for voice input.",
+      granted: "Allowed. Profiles can use voice input.",
+      denied: "Denied. The button opens System Settings, where you can allow it.",
+      restricted: "Blocked by a device policy. The button opens System Settings.",
+    },
+    microphoneFailed: "Couldn't request microphone access.",
   },
 
   admin: {

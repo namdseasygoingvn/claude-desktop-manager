@@ -1,4 +1,4 @@
-import type { Theme } from "../api";
+import type { MicrophoneAccess, Theme } from "../api";
 import { renderMcp, type McpOptions } from "./mcp";
 import { t } from "./strings";
 
@@ -10,6 +10,7 @@ export interface GeneralOptions {
   launchAtLogin: boolean;
   showUsageLimits: boolean;
   theme: Theme;
+  microphone: MicrophoneAccess;
   error: string | null;
   /** Null until the first status read answers, which is the only time the section is absent. */
   mcp: McpOptions | null;
@@ -18,6 +19,7 @@ export interface GeneralOptions {
   onLaunchAtLogin: (enabled: boolean) => void;
   onShowUsageLimits: (enabled: boolean) => void;
   onTheme: (theme: Theme) => void;
+  onRequestMicrophone: () => void;
 }
 
 export function renderGeneral(options: GeneralOptions): HTMLElement {
@@ -73,6 +75,10 @@ export function renderGeneral(options: GeneralOptions): HTMLElement {
     }),
   );
 
+  if (options.microphone !== "unsupported") {
+    pane.append(microphone(options.microphone, options.onRequestMicrophone));
+  }
+
   if (options.error) pane.append(failure(options.error));
 
   if (options.mcp) pane.append(renderMcp(options.mcp));
@@ -113,6 +119,37 @@ export function toggle(options: ToggleOptions): HTMLElement {
 
   row.append(input, text);
   return row;
+}
+
+function microphone(
+  access: Exclude<MicrophoneAccess, "unsupported">,
+  onRequest: () => void,
+): HTMLElement {
+  const block = document.createElement("div");
+  block.className = "settings-segmented";
+
+  const label = document.createElement("span");
+  label.className = "settings-label";
+  label.textContent = t.general.microphone;
+
+  const request = document.createElement("button");
+  request.type = "button";
+  request.className = "button";
+  request.dataset.focusKey = "request-microphone";
+  request.textContent = t.general.requestMicrophone;
+  request.disabled = access === "granted";
+  request.addEventListener("click", onRequest);
+
+  const row = document.createElement("div");
+  row.className = "settings-field-row";
+  row.append(label, request);
+
+  const hint = document.createElement("span");
+  hint.className = "helper";
+  hint.textContent = t.general.microphoneStates[access];
+
+  block.append(row, hint);
+  return block;
 }
 
 function dependents(enabled: boolean, rows: HTMLElement[]): HTMLElement {

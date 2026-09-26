@@ -36,6 +36,7 @@ import {
   setOpenPreferencesAtStart,
   setShowUsageLimits,
   setTheme,
+  requestMicrophoneAccess,
   showAdminView,
   toggleAdminPrune,
   type AdoptCandidate,
@@ -135,6 +136,7 @@ const state = {
     launchAtLogin: false,
     showUsageLimits: true,
     theme: "system",
+    microphone: "unsupported",
   } as GeneralSettings,
   settingsError: null as string | null,
   /** Null until the first read answers; the section stays out rather than inventing a port. */
@@ -322,6 +324,7 @@ function generalPane(): HTMLElement {
       launchAtLogin: state.settings.launchAtLogin,
       showUsageLimits: state.settings.showUsageLimits,
       theme: state.settings.theme,
+      microphone: state.settings.microphone,
       error: state.settingsError,
       mcp: mcpOptions(),
       onTheme: (theme: Theme) => {
@@ -345,6 +348,7 @@ function generalPane(): HTMLElement {
         state.settings.showUsageLimits = enabled;
         void store(setShowUsageLimits(enabled));
       },
+      onRequestMicrophone: () => void requestMicrophone(),
     }),
   ]);
 }
@@ -555,6 +559,16 @@ async function store(pending: Promise<void>): Promise<void> {
     state.settingsError = `${t.general.saveFailed} ${(error as CdmError).message}`;
     await loadSettings();
   }
+}
+
+async function requestMicrophone(): Promise<void> {
+  try {
+    state.settings.microphone = await requestMicrophoneAccess();
+    state.settingsError = null;
+  } catch (error) {
+    state.settingsError = `${t.general.microphoneFailed} ${(error as CdmError).message}`;
+  }
+  render();
 }
 
 function runUpdateCheck(): void {

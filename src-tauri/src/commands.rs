@@ -13,6 +13,7 @@ use crate::core::settings;
 use crate::core::theme::Theme;
 use crate::core::types::{AdoptCandidate, CdmError, Profile, ProfileStatus};
 use crate::platform;
+use crate::platform::microphone::{self, MicrophoneAccess};
 use crate::tray;
 
 const CONFIG_FILE: &str = "claude_desktop_config.json";
@@ -58,6 +59,7 @@ pub struct GeneralSettings {
     pub show_usage_limits: bool,
     pub launch_at_login: bool,
     pub theme: Theme,
+    pub microphone: MicrophoneAccess,
 }
 
 #[derive(Debug, Serialize)]
@@ -214,6 +216,7 @@ pub fn get_general_settings(app: AppHandle) -> CmdResult<GeneralSettings> {
         // An unreadable login item reads as off: the checkbox then offers to set it.
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
         theme: stored.theme,
+        microphone: microphone::status(),
     })
 }
 
@@ -248,6 +251,19 @@ pub fn set_theme(app: AppHandle, theme: Theme) -> CmdResult<()> {
     settings::save(&current)?;
     tray::apply_theme(&app, theme).map_err(|e| CdmError::Other(e.to_string()))?;
     Ok(())
+}
+
+/// `(async)`: it blocks until the system prompt is answered. Once macOS has a stored answer it
+/// never prompts again, so a refusal can only be undone in System Settings.
+#[tauri::command(async)]
+pub fn request_microphone_access() -> CmdResult<MicrophoneAccess> {
+    let access = microphone::request();
+    #[cfg(target_os = "macos")]
+    if matches!(access, MicrophoneAccess::Denied | MicrophoneAccess::Restricted) {
+        tauri_plugin_opener::open_url(microphone::PRIVACY_SETTINGS_URL, None::<&str>)
+            .map_err(|e| CdmError::Io(e.to_string()))?;
+    }
+    Ok(access)
 }
 
 #[tauri::command]

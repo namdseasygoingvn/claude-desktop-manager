@@ -82,6 +82,7 @@ fn run_manager() {
             commands::set_show_usage_limits,
             commands::set_launch_at_login,
             commands::set_theme,
+            commands::request_microphone_access,
             commands::get_sidebar_width,
             commands::set_sidebar_width,
             commands::get_collapsed_groups,
