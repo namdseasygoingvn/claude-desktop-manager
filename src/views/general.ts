@@ -1,4 +1,4 @@
-import type { MicrophoneAccess, Theme } from "../api";
+import type { PrivacyAccess, Theme } from "../api";
 import { renderMcp, type McpOptions } from "./mcp";
 import { t } from "./strings";
 
@@ -10,7 +10,8 @@ export interface GeneralOptions {
   launchAtLogin: boolean;
   showUsageLimits: boolean;
   theme: Theme;
-  microphone: MicrophoneAccess;
+  microphone: PrivacyAccess;
+  speechRecognition: PrivacyAccess;
   error: string | null;
   /** Null until the first status read answers, which is the only time the section is absent. */
   mcp: McpOptions | null;
@@ -20,6 +21,7 @@ export interface GeneralOptions {
   onShowUsageLimits: (enabled: boolean) => void;
   onTheme: (theme: Theme) => void;
   onRequestMicrophone: () => void;
+  onRequestSpeechRecognition: () => void;
 }
 
 export function renderGeneral(options: GeneralOptions): HTMLElement {
@@ -76,7 +78,29 @@ export function renderGeneral(options: GeneralOptions): HTMLElement {
   );
 
   if (options.microphone !== "unsupported") {
-    pane.append(microphone(options.microphone, options.onRequestMicrophone));
+    pane.append(
+      privacyRequest({
+        focusKey: "request-microphone",
+        label: t.general.microphone,
+        use: t.general.microphoneUse,
+        button: t.general.requestMicrophone,
+        access: options.microphone,
+        onRequest: options.onRequestMicrophone,
+      }),
+    );
+  }
+
+  if (options.speechRecognition !== "unsupported") {
+    pane.append(
+      privacyRequest({
+        focusKey: "request-speech-recognition",
+        label: t.general.speechRecognition,
+        use: t.general.speechRecognitionUse,
+        button: t.general.requestSpeechRecognition,
+        access: options.speechRecognition,
+        onRequest: options.onRequestSpeechRecognition,
+      }),
+    );
   }
 
   if (options.error) pane.append(failure(options.error));
@@ -121,24 +145,30 @@ export function toggle(options: ToggleOptions): HTMLElement {
   return row;
 }
 
-function microphone(
-  access: Exclude<MicrophoneAccess, "unsupported">,
-  onRequest: () => void,
-): HTMLElement {
+interface PrivacyRequestOptions {
+  focusKey: string;
+  label: string;
+  use: string;
+  button: string;
+  access: Exclude<PrivacyAccess, "unsupported">;
+  onRequest: () => void;
+}
+
+function privacyRequest(options: PrivacyRequestOptions): HTMLElement {
   const block = document.createElement("div");
   block.className = "settings-segmented";
 
   const label = document.createElement("span");
   label.className = "settings-label";
-  label.textContent = t.general.microphone;
+  label.textContent = options.label;
 
   const request = document.createElement("button");
   request.type = "button";
   request.className = "button";
-  request.dataset.focusKey = "request-microphone";
-  request.textContent = t.general.requestMicrophone;
-  request.disabled = access === "granted";
-  request.addEventListener("click", onRequest);
+  request.dataset.focusKey = options.focusKey;
+  request.textContent = options.button;
+  request.disabled = options.access === "granted";
+  request.addEventListener("click", options.onRequest);
 
   const row = document.createElement("div");
   row.className = "settings-field-row";
@@ -146,7 +176,7 @@ function microphone(
 
   const hint = document.createElement("span");
   hint.className = "helper";
-  hint.textContent = t.general.microphoneStates[access];
+  hint.textContent = t.general.privacyHint(options.use, t.general.privacyStates[options.access]);
 
   block.append(row, hint);
   return block;

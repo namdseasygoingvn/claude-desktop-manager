@@ -74,16 +74,17 @@ export interface GroupList {
 /** `system` is a deferral, not a palette: it resolves against whatever the OS reports. */
 export type Theme = "light" | "dark" | "system";
 
-export type MicrophoneAccess = "notDetermined" | "granted" | "denied" | "restricted" | "unsupported";
+export type PrivacyAccess = "notDetermined" | "granted" | "denied" | "restricted" | "unsupported";
 
-/** The General tab. `launchAtLogin` and `microphone` are read back from the OS, not from a file cdm owns. */
+/** The General tab. `launchAtLogin` and the privacy fields are read back from the OS, not from a file cdm owns. */
 export interface GeneralSettings {
   openPreferencesAtStart: boolean;
   openLatestProfileAtStart: boolean;
   launchAtLogin: boolean;
   showUsageLimits: boolean;
   theme: Theme;
-  microphone: MicrophoneAccess;
+  microphone: PrivacyAccess;
+  speechRecognition: PrivacyAccess;
 }
 
 export interface SessionSyncStatus {
@@ -256,7 +257,9 @@ export const setLaunchAtLogin = (enabled: boolean) =>
 export const setShowUsageLimits = (enabled: boolean) =>
   call<void>("set_show_usage_limits", { enabled });
 export const setTheme = (theme: Theme) => call<void>("set_theme", { theme });
-export const requestMicrophoneAccess = () => call<MicrophoneAccess>("request_microphone_access");
+export const requestMicrophoneAccess = () => call<PrivacyAccess>("request_microphone_access");
+export const requestSpeechRecognitionAccess = () =>
+  call<PrivacyAccess>("request_speech_recognition_access");
 // The setters answer with the whole status, so a refused bind reaches the pane on the same
 // round trip that caused it.
 export const getMcpStatus = () => call<McpStatus>("get_mcp_status");

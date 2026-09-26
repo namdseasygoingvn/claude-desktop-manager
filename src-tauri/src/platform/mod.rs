@@ -10,11 +10,11 @@ use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
 
 #[cfg(target_os = "macos")]
 mod darwin;
-pub mod microphone;
 #[cfg(target_os = "windows")]
 mod msix;
 #[cfg(target_os = "windows")]
 mod msix_portable;
+pub mod privacy;
 #[cfg(target_os = "windows")]
 mod win32;
 

@@ -122,14 +122,20 @@ export const t = {
     openLatestProfileHint: `Launch the most recently used profile when ${appName} starts.`,
     saveFailed: "Couldn't save that setting.",
     microphone: "Microphone",
+    microphoneUse: "Profiles need this for voice input.",
     requestMicrophone: "Request mic access",
-    microphoneStates: {
-      notDetermined: "Not asked yet. Profiles need this for voice input.",
-      granted: "Allowed. Profiles can use voice input.",
+    microphoneFailed: "Couldn't request microphone access.",
+    speechRecognition: "Speech recognition",
+    speechRecognitionUse: "Profiles need this for Quick Entry dictation.",
+    requestSpeechRecognition: "Request speech recognition access",
+    speechRecognitionFailed: "Couldn't request speech recognition access.",
+    privacyStates: {
+      notDetermined: "Not asked yet.",
+      granted: "Allowed.",
       denied: "Denied. The button opens System Settings, where you can allow it.",
       restricted: "Blocked by a device policy. The button opens System Settings.",
     },
-    microphoneFailed: "Couldn't request microphone access.",
+    privacyHint: (use: string, state: string) => `${use} ${state}`,
   },
 
   admin: {

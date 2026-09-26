@@ -4,5 +4,7 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Claude profiles launched from Claude Desktop Manager use the microphone for voice input.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Claude profiles launched from Claude Desktop Manager use speech recognition for Quick Entry dictation.</string>
 </dict>
 </plist>

@@ -37,6 +37,7 @@ import {
   setShowUsageLimits,
   setTheme,
   requestMicrophoneAccess,
+  requestSpeechRecognitionAccess,
   showAdminView,
   toggleAdminPrune,
   type AdoptCandidate,
@@ -45,6 +46,7 @@ import {
   type Group,
   type JoinReport,
   type McpStatus,
+  type PrivacyAccess,
   type Profile,
   type ProfileStatus,
   type SessionSyncStatus,
@@ -137,6 +139,7 @@ const state = {
     showUsageLimits: true,
     theme: "system",
     microphone: "unsupported",
+    speechRecognition: "unsupported",
   } as GeneralSettings,
   settingsError: null as string | null,
   /** Null until the first read answers; the section stays out rather than inventing a port. */
@@ -325,6 +328,7 @@ function generalPane(): HTMLElement {
       showUsageLimits: state.settings.showUsageLimits,
       theme: state.settings.theme,
       microphone: state.settings.microphone,
+      speechRecognition: state.settings.speechRecognition,
       error: state.settingsError,
       mcp: mcpOptions(),
       onTheme: (theme: Theme) => {
@@ -348,7 +352,18 @@ function generalPane(): HTMLElement {
         state.settings.showUsageLimits = enabled;
         void store(setShowUsageLimits(enabled));
       },
-      onRequestMicrophone: () => void requestMicrophone(),
+      onRequestMicrophone: () =>
+        void requestPrivacy(requestMicrophoneAccess, t.general.microphoneFailed, (access) => {
+          state.settings.microphone = access;
+        }),
+      onRequestSpeechRecognition: () =>
+        void requestPrivacy(
+          requestSpeechRecognitionAccess,
+          t.general.speechRecognitionFailed,
+          (access) => {
+            state.settings.speechRecognition = access;
+          },
+        ),
     }),
   ]);
 }
@@ -561,12 +576,16 @@ async function store(pending: Promise<void>): Promise<void> {
   }
 }
 
-async function requestMicrophone(): Promise<void> {
+async function requestPrivacy(
+  request: () => Promise<PrivacyAccess>,
+  failed: string,
+  apply: (access: PrivacyAccess) => void,
+): Promise<void> {
   try {
-    state.settings.microphone = await requestMicrophoneAccess();
+    apply(await request());
     state.settingsError = null;
   } catch (error) {
-    state.settingsError = `${t.general.microphoneFailed} ${(error as CdmError).message}`;
+    state.settingsError = `${failed} ${(error as CdmError).message}`;
   }
   render();
 }

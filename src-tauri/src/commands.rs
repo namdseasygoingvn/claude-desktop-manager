@@ -13,7 +13,7 @@ use crate::core::settings;
 use crate::core::theme::Theme;
 use crate::core::types::{AdoptCandidate, CdmError, Profile, ProfileStatus};
 use crate::platform;
-use crate::platform::microphone::{self, MicrophoneAccess};
+use crate::platform::privacy::{microphone, speech, PrivacyAccess};
 use crate::tray;
 
 const CONFIG_FILE: &str = "claude_desktop_config.json";
@@ -59,7 +59,8 @@ pub struct GeneralSettings {
     pub show_usage_limits: bool,
     pub launch_at_login: bool,
     pub theme: Theme,
-    pub microphone: MicrophoneAccess,
+    pub microphone: PrivacyAccess,
+    pub speech_recognition: PrivacyAccess,
 }
 
 #[derive(Debug, Serialize)]
@@ -217,6 +218,7 @@ pub fn get_general_settings(app: AppHandle) -> CmdResult<GeneralSettings> {
         launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
         theme: stored.theme,
         microphone: microphone::status(),
+        speech_recognition: speech::status(),
     })
 }
 
@@ -253,17 +255,31 @@ pub fn set_theme(app: AppHandle, theme: Theme) -> CmdResult<()> {
     Ok(())
 }
 
-/// `(async)`: it blocks until the system prompt is answered. Once macOS has a stored answer it
-/// never prompts again, so a refusal can only be undone in System Settings.
+/// `(async)`: it blocks until the system prompt is answered.
 #[tauri::command(async)]
-pub fn request_microphone_access() -> CmdResult<MicrophoneAccess> {
+pub fn request_microphone_access() -> CmdResult<PrivacyAccess> {
     let access = microphone::request();
     #[cfg(target_os = "macos")]
-    if matches!(access, MicrophoneAccess::Denied | MicrophoneAccess::Restricted) {
-        tauri_plugin_opener::open_url(microphone::PRIVACY_SETTINGS_URL, None::<&str>)
-            .map_err(|e| CdmError::Io(e.to_string()))?;
-    }
+    open_privacy_settings_if_refused(access, microphone::SETTINGS_PANE)?;
     Ok(access)
+}
+
+/// `(async)`: it blocks until the system prompt is answered.
+#[tauri::command(async)]
+pub fn request_speech_recognition_access() -> CmdResult<PrivacyAccess> {
+    let access = speech::request();
+    #[cfg(target_os = "macos")]
+    open_privacy_settings_if_refused(access, speech::SETTINGS_PANE)?;
+    Ok(access)
+}
+
+#[cfg(target_os = "macos")]
+fn open_privacy_settings_if_refused(access: PrivacyAccess, pane: &str) -> CmdResult<()> {
+    if !access.is_refused() {
+        return Ok(());
+    }
+    let url = crate::platform::privacy::settings_url(pane);
+    tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| CdmError::Io(e.to_string()).into())
 }
 
 #[tauri::command]
