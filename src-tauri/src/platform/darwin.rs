@@ -142,6 +142,10 @@ impl Platform for Darwin {
         }
     }
 
+    fn hard_kill(&self, pid: u32) {
+        signal(pid, libc::SIGKILL);
+    }
+
     fn trash(&self, path: &Path) -> Result<()> {
         super::trash_path(path)
     }

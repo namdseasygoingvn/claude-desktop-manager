@@ -236,6 +236,7 @@ export const renameProfile = (id: string, newName: string) =>
   call<Profile>("rename_profile", { id, newName });
 export const deleteProfile = (id: string) => call<void>("delete_profile", { id });
 export const quitProfile = (id: string) => call<void>("quit_profile", { id });
+export const forceQuitProfile = (id: string) => call<void>("force_quit_profile", { id });
 export const listAdoptable = () => call<AdoptCandidate[]>("list_adoptable");
 export const adoptFolder = (dirName: string, displayName: string) =>
   call<Profile>("adopt_folder", { dirName, displayName });
@@ -315,7 +316,6 @@ export const leaveSessionSync = (id: string) => call<void>("session_sync_leave",
 // command yet; each caller degrades to the plan's error path when the backend rejects.
 export const locateFolder = (id: string) => call<void>("locate_folder", { id });
 export const removeFromList = (id: string) => call<void>("remove_from_list", { id });
-export const forceQuitProfile = (id: string) => call<void>("force_quit_profile", { id });
 export const deleteProfilePermanently = (id: string) =>
   call<void>("delete_profile_permanently", { id });
 export const rebuildRegistry = () => call<ProfileStatus[]>("rebuild_registry");

@@ -121,6 +121,13 @@ pub fn quit_profile(app: AppHandle, id: String) -> CmdResult<()> {
 }
 
 #[tauri::command]
+pub fn force_quit_profile(app: AppHandle, id: String) -> CmdResult<()> {
+    profile::force_quit(&id)?;
+    let _ = tray::rebuild(&app);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn list_adoptable() -> CmdResult<Vec<AdoptCandidate>> {
     Ok(profile::adoptable()?)
 }

@@ -197,6 +197,14 @@ pub fn quit(id: &str) -> Result<()> {
     }
 }
 
+pub fn force_quit(id: &str) -> Result<()> {
+    let plat = platform::current();
+    let root = plat.profiles_root()?;
+    let reg = registry::load()?;
+    let idx = index_of(&reg, id)?;
+    plat.force_terminate(&root.join(&reg.profiles[idx].dir))
+}
+
 pub fn adopt(dir_name: &str, display_name: &str) -> Result<Profile> {
     let name = non_empty(display_name)?;
     let dir_name = single_component(dir_name)?;

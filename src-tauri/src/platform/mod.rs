@@ -43,6 +43,8 @@ const LIVENESS_LOCK: [&str; 3] = ["Local Storage", "leveldb", "LOCK"];
 const TERM_GRACE: Duration = Duration::from_secs(5);
 const KILL_GRACE: Duration = Duration::from_secs(3);
 const LOCK_RELEASE_GRACE: Duration = Duration::from_secs(3);
+/// Longer than `LOCK_RELEASE_GRACE`: force quit is only offered after a quit already timed out.
+const FORCE_RELEASE_GRACE: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 
 pub trait Platform: Send + Sync {
@@ -68,6 +70,25 @@ pub trait Platform: Send + Sync {
     fn is_running_in(&self, table: &ProcessTable, data_dir: &Path) -> Result<Option<u32>>;
     /// Graceful stop escalating to a hard kill, then sweep helpers still holding `data_dir`.
     fn terminate(&self, pid: u32, data_dir: &Path) -> Result<()>;
+    /// SIGKILL / `taskkill /F /T`. No graceful step.
+    fn hard_kill(&self, pid: u32);
+    /// Hard-kill every process still holding `data_dir`, then wait for it to come free. For a
+    /// profile that `terminate` left in use.
+    fn force_terminate(&self, data_dir: &Path) -> Result<()> {
+        for pid in processes_for(&ProcessTable::snapshot(), data_dir).all {
+            self.hard_kill(pid);
+        }
+        if wait_until(FORCE_RELEASE_GRACE, || {
+            matches!(self.is_running(data_dir), Ok(None))
+        }) {
+            Ok(())
+        } else {
+            Err(CdmError::Other(format!(
+                "{} is still in use after a force quit",
+                data_dir.display()
+            )))
+        }
+    }
     /// Move to Trash / Recycle Bin. `Err` when the platform has none available.
     fn trash(&self, path: &Path) -> Result<()>;
     /// Duplicate a directory tree, copy-on-write where the filesystem offers it. `dst` must not
@@ -601,5 +622,13 @@ mod tests {
             &argv(&[&format!("--user-data-dir={DIR}")]),
             &targets
         ));
+    }
+
+    #[test]
+    fn force_terminate_on_a_dir_nothing_holds_succeeds_at_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let started = Instant::now();
+        assert!(current().force_terminate(dir.path()).is_ok());
+        assert!(started.elapsed() < FORCE_RELEASE_GRACE);
     }
 }

@@ -144,6 +144,10 @@ impl Platform for Win32 {
         }
     }
 
+    fn hard_kill(&self, pid: u32) {
+        taskkill(pid, true);
+    }
+
     fn trash(&self, path: &Path) -> Result<()> {
         super::trash_path(path)
     }
