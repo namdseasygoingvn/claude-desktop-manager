@@ -1,7 +1,7 @@
-//! Resolves the installed Claude MSIX package and classifies package-store paths.
+//! Resolves the installed Claude MSIX package.
 
 use std::os::windows::process::CommandExt;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const PACKAGE_REPO_KEY: &str = r"HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages";
@@ -9,7 +9,6 @@ const CLAUDE_PACKAGE_FILTER: &str = "Claude_*";
 const CLAUDE_PACKAGE_PREFIX: &str = "Claude_";
 const PACKAGE_ROOT_FOLDER_VALUE: &str = "PackageRootFolder";
 const APP_SUBDIR: &str = "app";
-const WINDOWS_APPS_DIR: &str = "WindowsApps";
 const PROGRAMFILES_ENV: &str = "PROGRAMFILES";
 
 /// The per-user package repository survives alias deletion and the version churn of every
@@ -66,28 +65,12 @@ fn package_root(full_name: &str) -> Option<PathBuf> {
         .or_else(|| {
             super::env_dir(PROGRAMFILES_ENV)
                 .ok()
-                .map(|root| root.join(WINDOWS_APPS_DIR).join(full_name))
+                .map(|root| root.join(super::launch_route::WINDOWS_APPS_DIR).join(full_name))
         })
 }
 
 pub(super) fn is_in_package_store(path: &Path) -> bool {
-    package_full_name(path).is_some()
-}
-
-/// The alias sits directly under a dir named WindowsApps and is launchable as-is; the protected
-/// package payload is nested one level deeper, under the package's own folder.
-pub(super) fn package_full_name(path: &Path) -> Option<String> {
-    let components: Vec<Component> = path.components().collect();
-    let index = components.iter().position(|c| {
-        matches!(c, Component::Normal(name) if name.to_str().is_some_and(|s| s.eq_ignore_ascii_case(WINDOWS_APPS_DIR)))
-    })?;
-    if components.len() - index - 1 <= 1 {
-        return None;
-    }
-    match components.get(index + 1) {
-        Some(Component::Normal(name)) => name.to_str().map(str::to_string),
-        _ => None,
-    }
+    super::launch_route::package_full_name(path).is_some()
 }
 
 #[cfg(test)]
@@ -120,41 +103,5 @@ Fin de la recherche : 2 correspondance(s) trouvée(s).
             newest(names),
             Some("Claude_1.14271.0.0_x64__pzs8sxrjxfjjc".to_string())
         );
-    }
-
-    #[test]
-    fn the_alias_path_has_no_package_full_name() {
-        let path = Path::new(r"C:\Users\x\AppData\Local\Microsoft\WindowsApps\claude.exe");
-        assert_eq!(package_full_name(path), None);
-        assert!(!is_in_package_store(path));
-    }
-
-    #[test]
-    fn the_package_payload_path_yields_its_full_name() {
-        let path = Path::new(
-            r"C:\Program Files\WindowsApps\Claude_1.14271.0.0_x64__pzs8sxrjxfjjc\app\claude.exe",
-        );
-        assert_eq!(
-            package_full_name(path),
-            Some("Claude_1.14271.0.0_x64__pzs8sxrjxfjjc".to_string())
-        );
-        assert!(is_in_package_store(path));
-    }
-
-    #[test]
-    fn a_mixed_case_windowsapps_component_still_matches() {
-        let path = Path::new(
-            r"C:\Program Files\windowsapps\Claude_1.14271.0.0_x64__pzs8sxrjxfjjc\app\claude.exe",
-        );
-        assert_eq!(
-            package_full_name(path),
-            Some("Claude_1.14271.0.0_x64__pzs8sxrjxfjjc".to_string())
-        );
-    }
-
-    #[test]
-    fn a_path_with_no_windowsapps_component_has_no_package_full_name() {
-        let path = Path::new(r"C:\Program Files\AnthropicClaude\claude.exe");
-        assert_eq!(package_full_name(path), None);
     }
 }

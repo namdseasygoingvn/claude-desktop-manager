@@ -184,7 +184,10 @@ fn delete(pos: &[&str], yes: bool) -> R {
 
 fn doctor() -> R {
     match platform::current().find_claude_binary() {
-        Ok(path) => println!("binary\t{}", path.display()),
+        Ok(path) => {
+            println!("binary\t{}", path.display());
+            println!("route\t{}", platform::launch_route(&path).label());
+        }
         Err(e) => println!("binary\tNOT FOUND: {e} (set CDM_CLAUDE_BINARY)"),
     }
     match other_instance_pid() {

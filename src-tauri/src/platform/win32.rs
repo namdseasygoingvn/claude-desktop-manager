@@ -4,7 +4,7 @@
 //! behaviour below is still a projection. See `plan/01-platform-adapter.md` for the checks that
 //! close each one.
 
-use super::{Platform, ProcessTable, ProfileProcesses};
+use super::{LaunchRoute, Platform, ProcessTable, ProfileProcesses};
 use crate::core::types::{CdmError, Result};
 use std::fs::File;
 use std::os::windows::process::CommandExt;
@@ -84,16 +84,18 @@ impl Platform for Win32 {
     }
 
     fn launch(&self, binary: &Path, data_dir: &Path) -> Result<u32> {
-        // In-place launches out of the package store are unreliable (conditional ACLs, no
-        // package activation), so the payload runs from an out-of-store copy instead. The first
-        // such launch pays a one-time payload copy — that latency is accepted.
-        if super::msix::is_in_package_store(binary) {
-            let copy = super::msix_portable::launchable_copy(binary)?;
-            return super::spawn_detached(&copy, data_dir);
+        match super::launch_route::classify(binary) {
+            // The package must run with identity, or Claude's updater disables itself.
+            LaunchRoute::PackageActivation { package_full_name } => {
+                super::msix_portable::remove_copies();
+                super::msix_activation::activate(&package_full_name, binary, data_dir)
+            }
+            // UNVERIFIED: if the stub execs the real binary and exits, this pid is short-lived and
+            // `is_running` resolves the survivor by argv instead.
+            LaunchRoute::ExecutionAlias | LaunchRoute::Spawn => {
+                super::spawn_detached(binary, data_dir)
+            }
         }
-        // UNVERIFIED: if the stub execs the real binary and exits, this pid is short-lived and
-        // `is_running` resolves the survivor by argv instead.
-        super::spawn_detached(binary, data_dir)
     }
 
     fn is_running_in(&self, table: &ProcessTable, data_dir: &Path) -> Result<Option<u32>> {

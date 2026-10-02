@@ -8,10 +8,15 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
 
+#[cfg(any(target_os = "windows", test))]
+mod activation_inputs;
 #[cfg(target_os = "macos")]
 mod darwin;
+mod launch_route;
 #[cfg(target_os = "windows")]
 mod msix;
+#[cfg(target_os = "windows")]
+mod msix_activation;
 #[cfg(target_os = "windows")]
 mod msix_portable;
 pub mod privacy;
@@ -84,6 +89,13 @@ static CURRENT: Current = Current;
 
 pub fn current() -> &'static dyn Platform {
     &CURRENT
+}
+
+pub use launch_route::LaunchRoute;
+
+/// How `Platform::launch` will start `binary`.
+pub fn launch_route(binary: &Path) -> LaunchRoute {
+    launch_route::classify(binary)
 }
 
 #[cfg(target_os = "macos")]

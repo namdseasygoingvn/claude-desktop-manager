@@ -57,3 +57,5 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_Storage_FileSystem",
     "Win32_Foundation",
 ] }
+# platform::msix_activation — IApplicationActivationManager is a COM interface, which windows-sys cannot call.
+windows = { version = "0.61", features = ["Win32_System_Com", "Win32_UI_Shell"] }

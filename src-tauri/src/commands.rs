@@ -67,6 +67,7 @@ pub struct GeneralSettings {
 #[serde(rename_all = "camelCase")]
 pub struct DoctorReport {
     pub binary: Option<String>,
+    pub launch_route: Option<&'static str>,
     pub binary_error: Option<CommandError>,
     pub profiles_root: String,
     pub reconcile: serde_json::Value,
@@ -337,9 +338,13 @@ pub fn session_sync_leave(id: String) -> CmdResult<()> {
 
 #[tauri::command]
 pub fn doctor(app: AppHandle) -> CmdResult<DoctorReport> {
-    let (binary, binary_error) = match platform::current().find_claude_binary() {
-        Ok(path) => (Some(path.display().to_string()), None),
-        Err(e) => (None, Some(CommandError::from(e))),
+    let (binary, launch_route, binary_error) = match platform::current().find_claude_binary() {
+        Ok(path) => (
+            Some(path.display().to_string()),
+            Some(platform::launch_route(&path).label()),
+            None,
+        ),
+        Err(e) => (None, None, Some(CommandError::from(e))),
     };
 
     let mut reg = registry::load()?;
@@ -349,6 +354,7 @@ pub fn doctor(app: AppHandle) -> CmdResult<DoctorReport> {
 
     Ok(DoctorReport {
         binary,
+        launch_route,
         binary_error,
         profiles_root: profiles_root()?.display().to_string(),
         reconcile,
