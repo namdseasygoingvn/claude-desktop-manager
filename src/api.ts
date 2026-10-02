@@ -133,6 +133,14 @@ export type UpdateProgress =
 /** Owned by the backend; the frontend only ever stringifies it into Copy Details. */
 export type DoctorReport = Record<string, unknown>;
 
+/** Mirrors `core::claude_update::ClaudeUpdateStatus`. */
+export interface ClaudeUpdateStatus {
+  installed: string;
+  latest: string;
+  available: boolean;
+  outdatedProfileIds: string[];
+}
+
 export const ERROR_KINDS = [
   "BinaryNotFound",
   "ProfileNotFound",
@@ -247,6 +255,8 @@ export const moveProfile = (
 ) => call<void>("move_profile", { profileId, groupId, before });
 export const openConfig = (id: string) => call<void>("open_config", { id });
 export const doctor = () => call<DoctorReport>("doctor");
+export const checkClaudeUpdate = () => call<ClaudeUpdateStatus | null>("check_claude_update");
+export const installClaudeUpdate = () => call<void>("install_claude_update");
 export const getGeneralSettings = () => call<GeneralSettings>("get_general_settings");
 export const setOpenPreferencesAtStart = (enabled: boolean) =>
   call<void>("set_open_preferences_at_start", { enabled });

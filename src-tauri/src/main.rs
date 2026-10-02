@@ -69,6 +69,8 @@ fn run_manager() {
             commands::open_config,
             commands::reveal_profile,
             commands::doctor,
+            commands::check_claude_update,
+            commands::install_claude_update,
             commands::is_translated,
             commands::open_releases_page,
             commands::locate_binary,

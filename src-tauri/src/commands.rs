@@ -5,6 +5,7 @@ use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::admin;
+use crate::core::claude_update::{self, ClaudeUpdateStatus};
 use crate::core::groups;
 use crate::core::profile;
 use crate::core::registry;
@@ -359,6 +360,25 @@ pub fn doctor(app: AppHandle) -> CmdResult<DoctorReport> {
         profiles_root: profiles_root()?.display().to_string(),
         reconcile,
     })
+}
+
+async fn run_blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, CdmError> + Send + 'static,
+) -> CmdResult<T> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| CommandError::from(CdmError::Other(e.to_string())))?
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn check_claude_update() -> CmdResult<Option<ClaudeUpdateStatus>> {
+    run_blocking(claude_update::status).await
+}
+
+#[tauri::command]
+pub async fn install_claude_update() -> CmdResult<()> {
+    run_blocking(claude_update::install).await
 }
 
 #[tauri::command]

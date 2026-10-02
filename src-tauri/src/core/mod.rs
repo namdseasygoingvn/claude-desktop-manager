@@ -1,6 +1,8 @@
 pub mod claude_code;
+pub mod claude_update;
 pub mod groups;
 pub mod naming;
+pub mod overlay_recovery;
 mod persist;
 pub mod profile;
 pub mod registry;

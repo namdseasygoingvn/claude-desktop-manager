@@ -9,7 +9,7 @@ const MICROSOFT_DIR: &str = "Microsoft";
 pub enum LaunchRoute {
     Spawn,
     ExecutionAlias,
-    PackageActivation { package_full_name: String },
+    PackageCopy { package_full_name: String },
 }
 
 impl LaunchRoute {
@@ -17,14 +17,14 @@ impl LaunchRoute {
         match self {
             Self::Spawn => "spawn",
             Self::ExecutionAlias => "executionAlias",
-            Self::PackageActivation { .. } => "packageActivation",
+            Self::PackageCopy { .. } => "packageCopy",
         }
     }
 }
 
 pub(super) fn classify(binary: &Path) -> LaunchRoute {
     if let Some(package_full_name) = package_full_name(binary) {
-        return LaunchRoute::PackageActivation { package_full_name };
+        return LaunchRoute::PackageCopy { package_full_name };
     }
     let pieces = pieces(binary);
     match pieces.as_slice() {
@@ -110,10 +110,10 @@ mod tests {
     }
 
     #[test]
-    fn the_payload_classifies_as_package_activation() {
+    fn the_payload_classifies_as_package_copy() {
         assert_eq!(
             classify(Path::new(PAYLOAD)),
-            LaunchRoute::PackageActivation {
+            LaunchRoute::PackageCopy {
                 package_full_name: FULL_NAME.to_string()
             }
         );
@@ -149,11 +149,11 @@ mod tests {
     }
 
     #[test]
-    fn a_user_folder_named_windowsapps_classifies_as_package_activation() {
+    fn a_user_folder_named_windowsapps_classifies_as_package_copy() {
         let path = Path::new(r"D:\WindowsApps\foo\claude.exe");
         assert_eq!(
             classify(path),
-            LaunchRoute::PackageActivation {
+            LaunchRoute::PackageCopy {
                 package_full_name: "foo".to_string()
             }
         );
@@ -172,11 +172,11 @@ mod tests {
         assert_eq!(LaunchRoute::Spawn.label(), "spawn");
         assert_eq!(LaunchRoute::ExecutionAlias.label(), "executionAlias");
         assert_eq!(
-            LaunchRoute::PackageActivation {
+            LaunchRoute::PackageCopy {
                 package_full_name: FULL_NAME.to_string()
             }
             .label(),
-            "packageActivation"
+            "packageCopy"
         );
     }
 }

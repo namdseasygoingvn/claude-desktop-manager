@@ -30,8 +30,7 @@ const INSTALL_ROOTS: [(&str, &str); 3] = [
 ];
 const UNINSTALL_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Claude";
 /// The MSIX channel installs no enumerable directory and writes no uninstall key; this alias is
-/// the reliable launch vector when present, but deleting it leaves the package registration
-/// itself intact — `msix::payload_exe` probes that when the alias is gone.
+/// the fallback when `msix::payload_exe` cannot resolve the package.
 const MSIX_ALIAS_DIR: &str = r"Microsoft\WindowsApps";
 const VERSION_DIR_PREFIX: &str = "app-";
 
@@ -47,9 +46,11 @@ impl Platform for Win32 {
             .into_iter()
             .flat_map(|root| [newest_versioned_exe(&root), Some(root.join(EXE_NAME))])
             .flatten()
-            .chain(msix_alias())
-            // Lazy: the package probe spawns reg twice, which an alias hit should skip.
+            // The payload beats the alias: an alias launch carries package identity, which
+            // virtualizes AppData writes away from session sync. Lazy because the package probe
+            // spawns reg twice, which a Squirrel hit should skip.
             .chain(std::iter::once_with(super::msix::payload_exe).flatten())
+            .chain(msix_alias())
             .find(|candidate| super::is_executable_file(candidate))
             .ok_or(CdmError::BinaryNotFound)
     }
@@ -85,10 +86,10 @@ impl Platform for Win32 {
 
     fn launch(&self, binary: &Path, data_dir: &Path) -> Result<u32> {
         match super::launch_route::classify(binary) {
-            // The package must run with identity, or Claude's updater disables itself.
-            LaunchRoute::PackageActivation { package_full_name } => {
-                super::msix_portable::remove_copies();
-                super::msix_activation::activate(&package_full_name, binary, data_dir)
+            // The copy has no identity, so no AppData virtualization.
+            LaunchRoute::PackageCopy { .. } => {
+                let copy = super::msix_portable::launchable_copy(binary)?;
+                super::spawn_detached(&copy, data_dir)
             }
             // UNVERIFIED: if the stub execs the real binary and exits, this pid is short-lived and
             // `is_running` resolves the survivor by argv instead.

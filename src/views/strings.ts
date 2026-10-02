@@ -199,6 +199,38 @@ export const t = {
     },
   },
 
+  claudeUpdate: {
+    heading: "Claude Desktop",
+    installed: (version: string) => `Version ${version} is installed.`,
+    check: "Check for Updates",
+    checking: "Checking…",
+    upToDate: (version: string) => `Claude Desktop is up to date (${version}).`,
+    available: (version: string) => `Claude Desktop ${version} is available.`,
+    update: "Update Claude Desktop",
+    installing: "Installing…",
+    closesOriginal:
+      "The original Claude Desktop closes while the update installs. Your profiles keep running.",
+    installedNow: (version: string) => `Claude Desktop ${version} is installed.`,
+    outdated: (count: number) =>
+      count === 1
+        ? "1 running profile still uses the old version of Claude Desktop."
+        : `${count} running profiles still use the old version of Claude Desktop.`,
+    restart: "Restart Profiles",
+    restarting: "Restarting…",
+    restartConfirm: {
+      message: (count: number) =>
+        count === 1 ? "Restart 1 running profile?" : `Restart ${count} running profiles?`,
+      informative:
+        "Each profile is closed, forcibly if it doesn't quit, then reopened on the new version. Unsaved work in a profile window can be lost.",
+      confirm: "Restart",
+    },
+    failed: {
+      check: "Couldn't check for Claude Desktop updates.",
+      install: "Couldn't install the Claude Desktop update.",
+      restart: (name: string) => `Couldn't restart ${q(name)}.`,
+    },
+  },
+
   empty: {
     heading: "No profiles yet",
     body: "A profile is a separate Claude Desktop — its own login, its own MCP servers, its own chats. Nothing you already have in Claude Desktop is changed or moved.",

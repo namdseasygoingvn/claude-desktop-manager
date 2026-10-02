@@ -11,6 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::claude_code;
 use super::naming;
+use super::overlay_recovery;
 use super::registry;
 use super::session_pool;
 use super::types::{AdoptCandidate, CdmError, Profile, ProfileStatus, Registry, Result};
@@ -112,6 +113,9 @@ pub fn launch(id: &str) -> Result<u32> {
     // Only with the profile provably down: collapsing the runtime under a live app would swap
     // the binary out from under it. Undecidable counts as running, and never blocks the launch.
     if matches!(plat.is_running(&dir), Ok(None)) {
+        if !is_unmanaged_dir(&reg.profiles[idx].dir) {
+            overlay_recovery::recover(&dir);
+        }
         let _ = claude_code::sync(&dir);
         let _ = session_pool::reconcile(id, &dir);
     }

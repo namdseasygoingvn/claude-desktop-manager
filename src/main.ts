@@ -1,5 +1,6 @@
 import {
   appVersion,
+  checkClaudeUpdate,
   checkForUpdates,
   clearMcpLogs,
   getCollapsedGroups,
@@ -9,6 +10,7 @@ import {
   getSessionSyncStatus,
   hideAdminView,
   hideWindow,
+  installClaudeUpdate,
   installUpdate,
   isTranslated,
   joinSessionSync,
@@ -42,6 +44,7 @@ import {
   toggleAdminPrune,
   type AdoptCandidate,
   type CdmError,
+  type ClaudeUpdateStatus,
   type GeneralSettings,
   type Group,
   type JoinReport,
@@ -57,9 +60,10 @@ import {
 import { renderAdmin } from "./views/admin";
 import { openAdoptSheet, renderAdoptBanner } from "./views/adopt";
 import { openCreateSheet } from "./views/create";
+import { renderClaudeUpdate, isClaudeUpdateBusy, type ClaudeUpdateState } from "./views/claude_update";
 import { confirmDelete, confirmRemoveFromList } from "./views/delete";
 import { renderDetail } from "./views/detail";
-import { isDialogOpen } from "./views/dialog";
+import { isDialogOpen, openDialog, type DialogHandle } from "./views/dialog";
 import { renderEmpty } from "./views/empty";
 import {
   announce,
@@ -83,7 +87,8 @@ import { openIconPicker } from "./views/icon-picker";
 import { filterProfiles, ordered, renderSidebar } from "./views/list";
 import { paintMcp, type McpOptions } from "./views/mcp";
 import { openMenu, type MenuEntry } from "./views/menu";
-import { matches, platform, shortcuts } from "./views/platform";
+import { isMac, matches, platform, shortcuts } from "./views/platform";
+import { quitRunning } from "./views/quit";
 import { openRenameSheet } from "./views/rename";
 import { restoreSidebarWidth } from "./views/resize";
 import { t } from "./views/strings";
@@ -132,6 +137,7 @@ const state = {
   fatal: null as CdmError | null,
   version: "",
   update: { phase: "idle" } as UpdateState,
+  claudeUpdate: (isMac ? null : { phase: "idle" }) as ClaudeUpdateState | null,
   settings: {
     openPreferencesAtStart: true,
     openLatestProfileAtStart: false,
@@ -273,6 +279,7 @@ function selectTab(tab: TabId): void {
   syncUsagePolling();
   render();
   root.querySelector<HTMLElement>(`[data-focus-key="tab-${tab}"]`)?.focus();
+  if (tab === "updates" && state.claudeUpdate?.phase === "idle") runClaudeCheck();
 }
 
 function pane(kind: string, children: HTMLElement[]): HTMLElement {
@@ -316,6 +323,16 @@ function updatesPane(): HTMLElement {
       onUpdate: runUpdateInstall,
       onRestart: runRestart,
     }),
+    ...(state.claudeUpdate
+      ? [
+          renderClaudeUpdate({
+            state: state.claudeUpdate,
+            onCheck: runClaudeCheck,
+            onInstall: runClaudeInstall,
+            onRestartOutdated: runClaudeRestart,
+          }),
+        ]
+      : []),
   ]);
 }
 
@@ -684,6 +701,104 @@ function runRestart(): void {
     state.update = { phase: "failed", step: "restart", detail: error.message };
     settleUpdate();
   });
+}
+
+function claudeBusy(): boolean {
+  return state.claudeUpdate !== null && isClaudeUpdateBusy(state.claudeUpdate);
+}
+
+function claudeStatus(): ClaudeUpdateStatus | null {
+  const current = state.claudeUpdate;
+  return current && "status" in current ? current.status : null;
+}
+
+function runClaudeCheck(): void {
+  if (claudeBusy()) return;
+  void claudeCheck();
+}
+
+async function claudeCheck(): Promise<void> {
+  state.claudeUpdate = { phase: "checking" };
+  render();
+  try {
+    const status = await checkClaudeUpdate();
+    state.claudeUpdate = status ? { phase: "ready", status } : null;
+  } catch (error) {
+    state.claudeUpdate = {
+      phase: "failed",
+      step: "check",
+      detail: (error as CdmError).message,
+      status: null,
+    };
+  }
+  render();
+}
+
+function runClaudeInstall(): void {
+  const status = claudeStatus();
+  if (claudeBusy() || !status) return;
+  state.claudeUpdate = { phase: "installing", status };
+  render();
+
+  void installClaudeUpdate()
+    .then(() => claudeCheck())
+    .catch((error: CdmError) => {
+      state.claudeUpdate = { phase: "failed", step: "install", detail: error.message, status };
+      render();
+    });
+}
+
+function runClaudeRestart(): void {
+  const status = claudeStatus();
+  const count = status?.outdatedProfileIds.length ?? 0;
+  if (claudeBusy() || !status || count === 0) return;
+
+  openDialog({
+    message: t.claudeUpdate.restartConfirm.message(count),
+    informative: t.claudeUpdate.restartConfirm.informative,
+    buttons: [
+      {
+        id: "restart",
+        label: t.claudeUpdate.restartConfirm.confirm,
+        role: "destructive",
+        onSelect: (dialog: DialogHandle) => {
+          dialog.close();
+          void restartOutdated(status);
+        },
+      },
+      { id: "cancel", label: t.common.cancel, role: "cancel" },
+    ],
+  });
+}
+
+async function restartOutdated(status: ClaudeUpdateStatus): Promise<void> {
+  state.claudeUpdate = { phase: "restarting", status };
+  render();
+
+  let failedName: string | null = null;
+  for (const id of status.outdatedProfileIds) {
+    const name = state.profiles.find((entry) => entry.profile.id === id)?.profile.name ?? id;
+    try {
+      if (!(await quitRunning(id, name))) break;
+      await launchProfile(id);
+    } catch {
+      failedName = name;
+      break;
+    }
+  }
+
+  await refresh();
+  if (failedName === null) {
+    await claudeCheck();
+    return;
+  }
+  state.claudeUpdate = {
+    phase: "failed",
+    step: "restart",
+    detail: t.claudeUpdate.failed.restart(failedName),
+    status,
+  };
+  render();
 }
 
 /** Focus lands on whatever the pane now offers, in the order it asks to be acted on. */

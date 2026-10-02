@@ -9,16 +9,18 @@ use std::time::{Duration, Instant};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
 
 #[cfg(any(target_os = "windows", test))]
-mod activation_inputs;
+mod claude_feed;
+#[cfg(target_os = "windows")]
+mod claude_update;
 #[cfg(target_os = "macos")]
 mod darwin;
 mod launch_route;
 #[cfg(target_os = "windows")]
 mod msix;
 #[cfg(target_os = "windows")]
-mod msix_activation;
-#[cfg(target_os = "windows")]
 mod msix_portable;
+#[cfg(any(target_os = "windows", test))]
+mod package_version;
 pub mod privacy;
 #[cfg(target_os = "windows")]
 mod win32;
@@ -96,6 +98,60 @@ pub use launch_route::LaunchRoute;
 /// How `Platform::launch` will start `binary`.
 pub fn launch_route(binary: &Path) -> LaunchRoute {
     launch_route::classify(binary)
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudePackageUpdate {
+    pub installed: String,
+    pub latest: String,
+    pub available: bool,
+}
+
+/// `Ok(None)` where there is no Claude MSIX package to update (macOS, or Windows without the package).
+#[cfg(target_os = "windows")]
+pub fn check_claude_package_update() -> Result<Option<ClaudePackageUpdate>> {
+    claude_update::check()
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn check_claude_package_update() -> Result<Option<ClaudePackageUpdate>> {
+    Ok(None)
+}
+
+/// Downloads and installs the latest package. Closes the original Claude; profile copies keep running.
+#[cfg(target_os = "windows")]
+pub fn install_claude_package_update() -> Result<()> {
+    claude_update::install()
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn install_claude_package_update() -> Result<()> {
+    Err(CdmError::Other(
+        "Claude package updates are Windows-only".into(),
+    ))
+}
+
+/// True when the profile's running main process is a Claude older than the installed package.
+#[cfg(target_os = "windows")]
+pub fn runs_outdated_claude(table: &ProcessTable, data_dir: &Path) -> bool {
+    claude_update::runs_outdated(table, data_dir)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn runs_outdated_claude(_table: &ProcessTable, _data_dir: &Path) -> bool {
+    false
+}
+
+/// Where MSIX AppData write virtualization hid writes made to `path` by a packaged Claude.
+#[cfg(target_os = "windows")]
+pub fn virtualized_copy_of(path: &Path) -> Option<PathBuf> {
+    claude_update::virtualized_copy_of(path)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn virtualized_copy_of(_path: &Path) -> Option<PathBuf> {
+    None
 }
 
 #[cfg(target_os = "macos")]

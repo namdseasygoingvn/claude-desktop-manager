@@ -21,7 +21,7 @@ pub(super) fn payload_exe() -> Option<PathBuf> {
     super::is_executable_file(&exe).then_some(exe)
 }
 
-fn newest_claude_package() -> Option<String> {
+pub(super) fn newest_claude_package() -> Option<String> {
     newest(claude_packages(&query_claude_packages_text()?))
 }
 
@@ -51,11 +51,9 @@ fn claude_packages(text: &str) -> Vec<String> {
 fn newest(names: Vec<String>) -> Option<String> {
     names
         .into_iter()
-        .max_by_key(|name| super::win32::version_key(package_version(name)))
-}
-
-fn package_version(full_name: &str) -> &str {
-    full_name.split('_').nth(1).unwrap_or("")
+        .max_by_key(|name| {
+            super::win32::version_key(super::package_version::version_of(name).unwrap_or(""))
+        })
 }
 
 fn package_root(full_name: &str) -> Option<PathBuf> {
