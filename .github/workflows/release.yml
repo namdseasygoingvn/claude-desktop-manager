@@ -1,0 +1,221 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "claude-desktop-manager-src commit"
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_REPO: namdseasygoingvn/claude-desktop-manager-src
+  # rust-cache keys on the rustc version, so a floating `stable` cold-rebuilds every
+  # cache each time Rust releases. Bump this deliberately instead.
+  RUST_TOOLCHAIN: "1.98.0"
+  RELEASE_BODY: |
+    Create, name, and launch isolated Claude Desktop profiles.
+
+    **macOS:** download the `.dmg` for your chip — `aarch64` for Apple Silicon, `x64` for Intel.
+    Open it, drag the app to Applications.
+    First open: macOS blocks it — clear the download flag with
+    `xattr -dr com.apple.quarantine "/Applications/Claude Desktop Manager.app"`,
+    or allow it once in **System Settings → Privacy & Security → Open Anyway**.
+
+    **Windows (x64):** download the `-setup.exe` and run it.
+    First run: SmartScreen shows "Windows protected your PC" (unsigned) — **More info → Run anyway**.
+
+    The app lives in the **menu bar / system tray**, not the Dock or taskbar.
+    Installed copies update themselves silently; the tray also has *Check for Updates…*.
+
+jobs:
+  # Versions live here, as tags of this repo: one patch above the newest tag, or the
+  # source's tauri.conf.json version when someone raised it by hand.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      release_id: ${{ steps.draft.outputs.id }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ inputs.sha }}
+          token: ${{ secrets.EZG_PAT }}
+          path: source
+          persist-credentials: false
+
+      - id: next
+        run: |
+          CONF=$(node -p "require('./source/src-tauri/tauri.conf.json').version")
+          LAST=$(git tag -l 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
+          NEXT=$(node -e '
+            const p = (v) => (v || "0.0.0").split(".").map(Number)
+            const [a, b, c] = p(process.argv[1]), conf = p(process.argv[2])
+            const bumped = [a, b, c + 1]
+            const cmp = (x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]
+            console.log((cmp(conf, bumped) > 0 ? conf : bumped).join("."))
+          ' "$LAST" "$CONF")
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "last ${LAST:-none}, source $CONF -> $NEXT"
+
+      # The tag is pushed before the draft so the assets get tag-pinned URLs, and the
+      # draft is created once so the build matrix never races to create it. It stays a
+      # draft until `publish`: `releases/latest` skips drafts.
+      - id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ steps.next.outputs.version }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" --draft --verify-tag --title "$TAG" \
+            --notes "$RELEASE_BODY"
+          echo "id=$(gh release view "$TAG" --json databaseId -q .databaseId)" >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ inputs.sha }}
+          token: ${{ secrets.EZG_PAT }}
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: test
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test --locked
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ inputs.sha }}
+          token: ${{ secrets.EZG_PAT }}
+          persist-credentials: false
+
+      - name: Stamp the release version
+        shell: bash
+        run: |
+          V=${{ needs.version.outputs.version }}
+          node -e '
+            const fs = require("fs"), f = "src-tauri/tauri.conf.json"
+            const c = JSON.parse(fs.readFileSync(f, "utf8"))
+            c.version = process.argv[1]
+            fs.writeFileSync(f, JSON.stringify(c, null, 2) + "\n")
+          ' "$V"
+          npm pkg set version="$V"
+
+      - uses: mozilla-actions/sccache-action@v0.0.11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+
+      # Both macOS jobs report the same OS and arch, so without the target in the
+      # key they would overwrite each other with the wrong target's artifacts.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - run: npm ci
+
+      # Builds, signs the updater artifacts, uploads them to this repo's draft and
+      # merges the platform into latest.json. releaseBody becomes its `notes` field.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          USAGE_INGEST_URL: ${{ secrets.USAGE_INGEST_URL }}
+          USAGE_INGEST_KEY: ${{ secrets.USAGE_INGEST_KEY }}
+        with:
+          owner: namdseasygoingvn
+          repo: claude-desktop-manager
+          releaseId: ${{ needs.version.outputs.release_id }}
+          tagName: v${{ needs.version.outputs.version }}
+          releaseBody: ${{ env.RELEASE_BODY }}
+          args: --target ${{ matrix.target }}
+
+      # An unsealed arm64 bundle is reported as damaged and cannot be opened;
+      # the ad-hoc identity in tauri.conf.json prevents that.
+      - name: Check the macOS bundle is sealed
+        if: runner.os == 'macOS'
+        run: |
+          APP=$(node -p "require('./src-tauri/tauri.conf.json').productName")
+          codesign --verify --strict --verbose=2 \
+            "src-tauri/target/${{ matrix.target }}/release/bundle/macos/$APP.app"
+
+  # A release missing a platform stays a draft, where releases/latest cannot serve
+  # its half-populated latest.json to the updater.
+  publish:
+    needs: [version, test, build]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      ID: ${{ needs.version.outputs.release_id }}
+    steps:
+      - name: Check latest.json covers every signed artifact
+        run: |
+          gh api --paginate "repos/$GH_REPO/releases/$ID/assets" > assets.json
+          gh api "repos/$GH_REPO/releases/assets/$(
+            jq -r '.[] | select(.name == "latest.json") | .id' assets.json
+          )" -H 'Accept: application/octet-stream' > latest.json
+          MISSING=$(jq -r --slurpfile latest latest.json '
+            [.[].name | select(endswith(".sig")) | rtrimstr(".sig")]
+            - [$latest[0].platforms[].url | split("/") | last]
+            | join(" ")' assets.json)
+          if [ -n "$MISSING" ]; then
+            echo "::error::latest.json has no entry for: $MISSING"
+            exit 1
+          fi
+
+      - name: Publish
+        run: gh api -X PATCH "repos/$GH_REPO/releases/$ID" -F draft=false
