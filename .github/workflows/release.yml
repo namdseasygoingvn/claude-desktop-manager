@@ -122,9 +122,8 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: sccache
+    # No sccache: it keys on source and CARGO_* env only, so it served a compile made
+    # without USAGE_INGEST_* and shipped a build with the usage sync off.
     steps:
       - uses: actions/checkout@v5
         with:
@@ -144,8 +143,6 @@ jobs:
             fs.writeFileSync(f, JSON.stringify(c, null, 2) + "\n")
           ' "$V"
           npm pkg set version="$V"
-
-      - uses: mozilla-actions/sccache-action@v0.0.11
 
       - uses: actions/setup-node@v5
         with:
