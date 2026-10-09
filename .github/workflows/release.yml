@@ -172,6 +172,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           USAGE_INGEST_URL: ${{ secrets.USAGE_INGEST_URL }}
           USAGE_INGEST_KEY: ${{ secrets.USAGE_INGEST_KEY }}
+          CDM_AUTH_URL: ${{ secrets.CDM_AUTH_URL }}
+          CDM_GOOGLE_CLIENT_ID: ${{ secrets.CDM_GOOGLE_CLIENT_ID }}
+          CDM_GOOGLE_CLIENT_SECRET: ${{ secrets.CDM_GOOGLE_CLIENT_SECRET }}
         with:
           owner: namdseasygoingvn
           repo: claude-desktop-manager
