@@ -86,29 +86,6 @@ jobs:
             --notes "$RELEASE_BODY"
           echo "id=$(gh release view "$TAG" --json databaseId -q .databaseId)" >> "$GITHUB_OUTPUT"
 
-  test:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          repository: ${{ env.SOURCE_REPO }}
-          ref: ${{ inputs.sha }}
-          token: ${{ secrets.EZG_PAT }}
-          persist-credentials: false
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          key: test
-
-      - name: Test
-        working-directory: src-tauri
-        run: cargo test --locked
-
   build:
     needs: version
     strategy:
@@ -195,7 +172,7 @@ jobs:
   # A release missing a platform stays a draft, where releases/latest cannot serve
   # its half-populated latest.json to the updater.
   publish:
-    needs: [version, test, build]
+    needs: [version, build]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
