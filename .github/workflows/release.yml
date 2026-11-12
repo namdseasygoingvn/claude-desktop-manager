@@ -196,3 +196,44 @@ jobs:
 
       - name: Publish
         run: gh api -X PATCH "repos/$GH_REPO/releases/$ID" -F draft=false
+
+  # Writes the published version back to the source's main, so its version files say
+  # what shipped. [skip ci] keeps that push from dispatching another release.
+  record:
+    needs: [version, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: main
+          token: ${{ secrets.EZG_PAT }}
+
+      - name: Record the version on main
+        env:
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4 5; do
+            node -e '
+              const fs = require("fs"), v = process.argv[1]
+              for (const f of ["src-tauri/tauri.conf.json", "package.json", "package-lock.json"]) {
+                const c = JSON.parse(fs.readFileSync(f, "utf8"))
+                c.version = v
+                if (c.packages?.[""]) c.packages[""].version = v
+                fs.writeFileSync(f, JSON.stringify(c, null, 2) + "\n")
+              }
+            ' "$V"
+            if git diff --quiet; then
+              echo "main already holds $V"
+              exit 0
+            fi
+            git commit -qam "* Release v$V [skip ci]"
+            git push origin HEAD:main && exit 0
+            # Main moved on: stamp again on top of it; the commit holds nothing else.
+            git fetch -q origin main
+            git reset -q --hard FETCH_HEAD
+          done
+          echo "::error::could not push v$V to main"
+          exit 1
